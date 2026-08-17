@@ -1,4 +1,4 @@
-use super::parser::RespValue;
+use super::RespValue;
 
 pub fn serialize(value: &RespValue) -> Vec<u8> {
     match value {

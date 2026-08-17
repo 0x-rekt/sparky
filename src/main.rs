@@ -2,6 +2,8 @@ use tokio::net::TcpListener;
 
 mod server;
 mod resp;
+mod connection;
+mod commands;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

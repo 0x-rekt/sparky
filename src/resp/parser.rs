@@ -1,13 +1,5 @@
 use bytes::BytesMut;
-
-pub enum RespValue {
-    SimpleString(String),
-    Error(String),
-    BulkString(String),
-    Integer(i64),
-    Array(Vec<RespValue>),
-    Nil
-}
+use super::RespValue;
 
 pub fn parse_message(buffer: &BytesMut) -> Result<(RespValue, usize), String> {
     match buffer.first() {

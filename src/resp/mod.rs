@@ -1,4 +1,12 @@
 pub mod parser;
 pub mod serializer;
 
-pub use parser::RespValue;
+#[derive(Debug, Clone)]
+pub enum RespValue {
+    SimpleString(String),
+    Error(String),
+    BulkString(String),
+    Integer(i64),
+    Array(Vec<RespValue>),
+    Nil,
+}
