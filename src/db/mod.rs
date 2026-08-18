@@ -28,6 +28,14 @@ impl Db {
     pub fn get(&self, key: &String) -> Option<&Bytes> {
         self.strings.get(key)
     }
+
+    pub fn remove(&mut self, key: &String) -> Option<Bytes> {
+        self.lists.remove(key);
+        self.hashes.remove(key);
+        self.sets.remove(key);
+        self.expirations.remove(key);
+        self.strings.remove(key)
+    }
 }
 
 pub type SharedDb = std::sync::Arc<std::sync::Mutex<Db>>;

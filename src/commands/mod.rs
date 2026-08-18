@@ -57,6 +57,23 @@ pub fn handle_command(request: RespValue, db: SharedDb) -> RespValue {
                 Some(value) => RespValue::BulkString(value.clone()),
                 None => RespValue::Nil,
             }
+        },
+        "DEL" => {
+            if args.len() != 1 {
+                return RespValue::Error("ERR wrong number of arguments for 'DEL' command".to_string())
+            } else {
+                let key = match get_string_arg(args, 0, "DEL") {
+                    Ok(k) => k,
+                    Err(e) => return e,
+                };
+                let key = String::from_utf8_lossy(&key).to_string();
+                let removed = db.lock().unwrap().remove(&key);
+                if removed.is_some() {
+                    RespValue::Integer(1)
+                } else {
+                    RespValue::Integer(0)
+                }
+            }
         }
         _ => RespValue::Error(format!("ERR unknown command: {}", cmd)),
     }
