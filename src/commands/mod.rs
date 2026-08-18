@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use bytes::Bytes;
 
 use crate::{db::SharedDb, resp::RespValue};
@@ -28,7 +30,7 @@ pub fn handle_command(request: RespValue, db: SharedDb) -> RespValue {
             Err(e) => e,
         },
         "SET" => {
-            if args.len() != 2 {
+            if args.len() < 2 {
                 return RespValue::Error("ERR wrong number of arguments for 'set' command".to_string());
             }
             let key = match get_string_arg(args, 0, "set") {
@@ -40,8 +42,28 @@ pub fn handle_command(request: RespValue, db: SharedDb) -> RespValue {
                 Err(e) => return e,
             };
 
+            let has_expiry = args.len() > 2 && matches!(args[2], RespValue::BulkString(ref s) if s.to_ascii_uppercase() == b"EX");
+
+            let expiry = if has_expiry {
+                if args.len() != 4 {
+                    return RespValue::Error("ERR wrong number of arguments for 'set' command with expiry".to_string());
+                }
+                let expiry_arg = match get_string_arg(args, 3, "set") {
+                    Ok(e) => e,
+                    Err(e) => return e,
+                };
+                let expiry_str = String::from_utf8_lossy(&expiry_arg);
+                let expiry_secs: u64 = match expiry_str.parse() {
+                    Ok(s) => s,
+                    Err(_) => return RespValue::Error("ERR invalid expiry time".to_string()),
+                };
+                Some(Instant::now() + Duration::from_secs(expiry_secs))
+            } else {
+                None
+            };
+
             let key = String::from_utf8_lossy(&key).to_string();
-            db.lock().unwrap().insert(key, value);
+            db.lock().unwrap().insert_with_expiry(key, value, expiry);
             RespValue::SimpleString("OK".to_string())
         }
         "GET" => {
