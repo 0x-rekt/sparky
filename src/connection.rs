@@ -4,10 +4,11 @@ use tokio::net::TcpStream;
 use tokio::io::{ AsyncReadExt, AsyncWriteExt};
 
 use crate::commands::handle_command;
+use crate::db::SharedDb;
 use crate::resp::parser::parse_message;
 use crate::resp::serializer;
 
-pub async  fn handle_connection(mut socket: TcpStream, addr: SocketAddr) {
+pub async  fn handle_connection(mut socket: TcpStream, addr: SocketAddr, db: SharedDb) {
     println!("Handling connection from: {}", addr);
      let mut buffer = BytesMut::with_capacity(1024);
             loop {
@@ -27,7 +28,7 @@ pub async  fn handle_connection(mut socket: TcpStream, addr: SocketAddr) {
                 loop {
                     match parse_message(&buffer) {
                         Ok((request, consumed)) => {
-                            let response = handle_command(request);
+                            let response = handle_command(request, db.clone()).await;
                             let serialized_response = serializer::serialize(&response);
                             if socket.write_all(&serialized_response).await.is_err() {
                                 eprintln!("Failed to write to socket");
