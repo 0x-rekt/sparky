@@ -1,4 +1,4 @@
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use super::RespValue;
 
 pub fn parse_message(buffer: &BytesMut) -> Result<(RespValue, usize), String> {
@@ -34,8 +34,7 @@ fn parse_bulk_string(buffer: &BytesMut) -> Result<(RespValue, usize), String> {
     if buffer.len() < start + length + 2 {
         return Err("Incomplete bulk string".to_string());
     }
-    let string = String::from_utf8(buffer[start..start + length].to_vec())
-        .map_err(|e| e.to_string())?;
+    let string = Bytes::copy_from_slice(&buffer[start..start + length]);
     Ok((RespValue::BulkString(string), start + length + 2))
 }
 

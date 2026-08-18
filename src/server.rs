@@ -1,6 +1,6 @@
 use tokio::net::TcpListener;
 
-use crate::{connection::handle_connection, db::{self, SharedDb}};
+use crate::{connection::handle_connection, db::SharedDb};
 
 pub async fn start_server(listener: TcpListener, db: SharedDb) -> anyhow::Result<()> {
     

@@ -1,3 +1,5 @@
+use bytes::Bytes;
+
 pub mod parser;
 pub mod serializer;
 
@@ -5,7 +7,7 @@ pub mod serializer;
 pub enum RespValue {
     SimpleString(String),
     Error(String),
-    BulkString(String),
+    BulkString(Bytes),
     Integer(i64),
     Array(Vec<RespValue>),
     Nil,

@@ -28,7 +28,7 @@ pub async  fn handle_connection(mut socket: TcpStream, addr: SocketAddr, db: Sha
                 loop {
                     match parse_message(&buffer) {
                         Ok((request, consumed)) => {
-                            let response = handle_command(request, db.clone()).await;
+                            let response = handle_command(request, db.clone());
                             let serialized_response = serializer::serialize(&response);
                             if socket.write_all(&serialized_response).await.is_err() {
                                 eprintln!("Failed to write to socket");
