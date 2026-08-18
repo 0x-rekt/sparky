@@ -335,6 +335,71 @@ pub fn handle_command(request: RespValue, db: SharedDb) -> RespValue {
             };
             db_guard.insert_with_expiry(key, new_value.clone(), None);
             RespValue::Integer(new_value.len() as i64)
+        },
+        "GETSET" => {
+            if args.len() != 2 {
+                return RespValue::Error(
+                    "ERR wrong number of arguments for 'GETSET' command".to_string(),
+                );
+            }
+            let key = match get_string_arg(args, 0, "GETSET") {
+                Ok(k) => k,
+                Err(e) => return e,
+            };
+            let new_value = match get_string_arg(args, 1, "GETSET") {
+                Ok(v) => v,
+                Err(e) => return e,
+            };
+            let key = String::from_utf8_lossy(&key).to_string();
+            let mut db_guard = db.lock().unwrap();
+            let old_value = db_guard.get(&key).cloned();
+            db_guard.insert_with_expiry(key, new_value.clone(), None);
+            match old_value {
+                Some(value) => RespValue::BulkString(value),
+                None => RespValue::Nil,
+            }
+        },
+        "GETDEL" => {
+            if args.len() != 1 {
+                return RespValue::Error(
+                    "ERR wrong number of arguments for 'GETDEL' command".to_string(),
+                );
+            }
+            let key = match get_string_arg(args, 0, "GETDEL") {
+                Ok(k) => k,
+                Err(e) => return e,
+            };
+            let key = String::from_utf8_lossy(&key).to_string();
+            let mut db_guard = db.lock().unwrap();
+            let value = db_guard.remove(&key);
+            match value {
+                Some(v) => RespValue::BulkString(v),
+                None => RespValue::Nil,
+            }
+        },
+        "RENAME" => {
+            if args.len() != 2 {
+                return RespValue::Error(
+                    "ERR wrong number of arguments for 'RENAME' command".to_string(),
+                );
+            }
+            let old_key = match get_string_arg(args, 0, "RENAME") {
+                Ok(k) => k,
+                Err(e) => return e,
+            };
+            let new_key = match get_string_arg(args, 1, "RENAME") {
+                Ok(k) => k,
+                Err(e) => return e,
+            };
+            let old_key = String::from_utf8_lossy(&old_key).to_string();
+            let new_key = String::from_utf8_lossy(&new_key).to_string();
+            let mut db_guard = db.lock().unwrap();
+            if let Some(value) = db_guard.remove(&old_key) {
+                db_guard.insert_with_expiry(new_key, value, None);
+                RespValue::SimpleString("OK".to_string())
+            } else {
+                RespValue::Error("ERR no such key".to_string())
+            }
         }
         _ => RespValue::Error(format!("ERR unknown command: {}", cmd)),
     }
