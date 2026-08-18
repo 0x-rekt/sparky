@@ -152,7 +152,7 @@ pub fn handle_command(request: RespValue, db: SharedDb) -> RespValue {
                 "none"
             };
             RespValue::SimpleString(value_type.to_string())
-        },
+        }
         "STRLEN" => {
             if args.len() != 1 {
                 return RespValue::Error(
@@ -170,6 +170,49 @@ pub fn handle_command(request: RespValue, db: SharedDb) -> RespValue {
             } else {
                 RespValue::Integer(0)
             }
+        }
+        "MGET" => {
+            if args.is_empty() {
+                return RespValue::Error(
+                    "ERR wrong number of arguments for 'MGET' command".to_string(),
+                );
+            }
+            let mut values = Vec::with_capacity(args.len());
+            let db_guard = db.lock().unwrap();
+            for arg in args {
+                let key = match get_string_arg(std::slice::from_ref(arg), 0, "MGET") {
+                    Ok(k) => k,
+                    Err(e) => return e,
+                };
+                let key = String::from_utf8_lossy(&key).to_string();
+                if let Some(value) = db_guard.strings.get(&key) {
+                    values.push(RespValue::BulkString(value.clone()));
+                } else {
+                    values.push(RespValue::Nil);
+                }
+            }
+            RespValue::Array(values)
+        }
+        "MSET" => {
+            if args.len() % 2 != 0 || args.is_empty() {
+                return RespValue::Error(
+                    "ERR wrong number of arguments for 'MSET' command".to_string(),
+                );
+            }
+            let mut db_guard = db.lock().unwrap();
+            for i in (0..args.len()).step_by(2) {
+                let key = match get_string_arg(args, i, "MSET") {
+                    Ok(k) => k,
+                    Err(e) => return e,
+                };
+                let value = match get_string_arg(args, i + 1, "MSET") {
+                    Ok(v) => v,
+                    Err(e) => return e,
+                };
+                let key = String::from_utf8_lossy(&key).to_string();
+                db_guard.insert_with_expiry(key, value, None);
+            }
+            RespValue::SimpleString("OK".to_string())
         }
         _ => RespValue::Error(format!("ERR unknown command: {}", cmd)),
     }
