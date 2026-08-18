@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 
 use crate::{db::SharedDb, resp::RespValue};
 
@@ -213,6 +213,128 @@ pub fn handle_command(request: RespValue, db: SharedDb) -> RespValue {
                 db_guard.insert_with_expiry(key, value, None);
             }
             RespValue::SimpleString("OK".to_string())
+        }
+        "INCR" => {
+            if args.len() != 1 {
+                return RespValue::Error(
+                    "ERR wrong number of arguments for 'INCR' command".to_string(),
+                );
+            }
+            let key = match get_string_arg(args, 0, "INCR") {
+                Ok(k) => k,
+                Err(e) => return e,
+            };
+            let key = String::from_utf8_lossy(&key).to_string();
+            let mut db_guard = db.lock().unwrap();
+            let current_value = db_guard.get(&key);
+            let new_value = match current_value {
+                Some(value) => {
+                    let value_str = String::from_utf8_lossy(value);
+                    match value_str.parse::<i64>() {
+                        Ok(num) => num + 1,
+                        Err(_) => {
+                            return RespValue::Error(
+                                "ERR value is not an integer or out of range".to_string(),
+                            );
+                        }
+                    }
+                }
+                None => 1,
+            };
+            db_guard.insert_with_expiry(key, Bytes::from(new_value.to_string()), None);
+            RespValue::Integer(new_value)
+        }
+        "DECR" => {
+            if args.len() != 1 {
+                return RespValue::Error(
+                    "ERR wrong number of arguments for 'DECR' command".to_string(),
+                );
+            }
+            let key = match get_string_arg(args, 0, "DECR") {
+                Ok(k) => k,
+                Err(e) => return e,
+            };
+            let key = String::from_utf8_lossy(&key).to_string();
+            let mut db_guard = db.lock().unwrap();
+            let current_value = db_guard.get(&key);
+            let new_value = match current_value {
+                Some(value) => {
+                    let value_str = String::from_utf8_lossy(value);
+                    match value_str.parse::<i64>() {
+                        Ok(num) => num - 1,
+                        Err(_) => {
+                            return RespValue::Error(
+                                "ERR value is not an integer or out of range".to_string(),
+                            );
+                        }
+                    }
+                }
+                None => -1,
+            };
+            db_guard.insert_with_expiry(key, Bytes::from(new_value.to_string()), None);
+            RespValue::Integer(new_value)
+        }
+        "INCRBY" => {
+            if args.len() != 2 {
+                return RespValue::Error(
+                    "ERR wrong number of arguments for 'INCRBY' command".to_string(),
+                );
+            }
+            let key = match get_string_arg(args, 0, "INCRBY") {
+                Ok(k) => k,
+                Err(e) => return e,
+            };
+            let increment = match get_nonnegative_integer(args, 1) {
+                Ok(inc) => inc,
+                Err(e) => return e,
+            };
+            let key = String::from_utf8_lossy(&key).to_string();
+            let mut db_guard = db.lock().unwrap();
+            let current_value = db_guard.get(&key);
+            let new_value = match current_value {
+                Some(value) => {
+                    let value_str = String::from_utf8_lossy(value);
+                    match value_str.parse::<i64>() {
+                        Ok(num) => num + increment as i64,
+                        Err(_) => {
+                            return RespValue::Error(
+                                "ERR value is not an integer or out of range".to_string(),
+                            );
+                        }
+                    }
+                }
+                None => increment as i64,
+            };
+            db_guard.insert_with_expiry(key, Bytes::from(new_value.to_string()), None);
+            RespValue::Integer(new_value)
+        }
+        "APPEND" => {
+            if args.len() != 2 {
+                return RespValue::Error(
+                    "ERR wrong number of arguments for 'APPEND' command".to_string(),
+                );
+            }
+            let key = match get_string_arg(args, 0, "APPEND") {
+                Ok(k) => k,
+                Err(e) => return e,
+            };
+            let append_value = match get_string_arg(args, 1, "APPEND") {
+                Ok(v) => v,
+                Err(e) => return e,
+            };
+            let key = String::from_utf8_lossy(&key).to_string();
+            let mut db_guard = db.lock().unwrap();
+            let current_value = db_guard.get(&key);
+            let new_value = match current_value {
+                Some(value) => {
+                    let mut combined = BytesMut::from(value.as_ref());
+                    combined.extend_from_slice(&append_value);
+                    combined.freeze()
+                }
+                None => append_value,
+            };
+            db_guard.insert_with_expiry(key, new_value.clone(), None);
+            RespValue::Integer(new_value.len() as i64)
         }
         _ => RespValue::Error(format!("ERR unknown command: {}", cmd)),
     }
