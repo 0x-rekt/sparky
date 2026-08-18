@@ -108,6 +108,69 @@ pub fn handle_command(request: RespValue, db: SharedDb) -> RespValue {
                 }
             }
         }
+        "EXISTS" => {
+            if args.is_empty() {
+                RespValue::Error("ERR wrong number of arguments for 'EXISTS' command".to_string())
+            } else {
+                let mut count = 0;
+                for arg in args {
+                    let key = match get_string_arg(std::slice::from_ref(arg), 0, "EXISTS") {
+                        Ok(k) => k,
+                        Err(e) => return e,
+                    };
+                    let key = String::from_utf8_lossy(&key).to_string();
+                    if db.lock().unwrap().contains_key(&key) {
+                        count += 1;
+                    }
+                }
+                RespValue::Integer(count)
+            }
+        }
+        "TYPE" => {
+            if args.len() != 1 {
+                return RespValue::Error(
+                    "ERR wrong number of arguments for 'TYPE' command".to_string(),
+                );
+            }
+            let key = match get_string_arg(args, 0, "TYPE") {
+                Ok(k) => k,
+                Err(e) => return e,
+            };
+            let key = String::from_utf8_lossy(&key).to_string();
+            let mut db_guard = db.lock().unwrap();
+            let value_type = if !db_guard.contains_key(&key) {
+                "none"
+            } else if db_guard.strings.contains_key(&key) {
+                "string"
+            } else if db_guard.lists.contains_key(&key) {
+                "list"
+            } else if db_guard.hashes.contains_key(&key) {
+                "hash"
+            } else if db_guard.sets.contains_key(&key) {
+                "set"
+            } else {
+                "none"
+            };
+            RespValue::SimpleString(value_type.to_string())
+        },
+        "STRLEN" => {
+            if args.len() != 1 {
+                return RespValue::Error(
+                    "ERR wrong number of arguments for 'STRLEN' command".to_string(),
+                );
+            }
+            let key = match get_string_arg(args, 0, "STRLEN") {
+                Ok(k) => k,
+                Err(e) => return e,
+            };
+            let key = String::from_utf8_lossy(&key).to_string();
+            let db_guard = db.lock().unwrap();
+            if let Some(value) = db_guard.strings.get(&key) {
+                RespValue::Integer(value.len() as i64)
+            } else {
+                RespValue::Integer(0)
+            }
+        }
         _ => RespValue::Error(format!("ERR unknown command: {}", cmd)),
     }
 }
