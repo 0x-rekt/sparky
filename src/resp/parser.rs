@@ -1,5 +1,5 @@
-use bytes::{Bytes, BytesMut};
 use super::RespValue;
+use bytes::{Bytes, BytesMut};
 
 pub fn parse_message(buffer: &BytesMut) -> Result<(RespValue, usize), String> {
     match buffer.first() {
@@ -24,7 +24,9 @@ fn parse_error(buffer: &BytesMut) -> Result<(RespValue, usize), String> {
 
 fn parse_bulk_string(buffer: &BytesMut) -> Result<(RespValue, usize), String> {
     let (length_str, start) = read_until_crlf(buffer, 1)?;
-    let length: i64 = length_str.parse().map_err(|_| "Invalid bulk string length".to_string())?;
+    let length: i64 = length_str
+        .parse()
+        .map_err(|_| "Invalid bulk string length".to_string())?;
 
     if length == -1 {
         return Ok((RespValue::Nil, start));
@@ -40,13 +42,17 @@ fn parse_bulk_string(buffer: &BytesMut) -> Result<(RespValue, usize), String> {
 
 fn parse_integer(buffer: &BytesMut) -> Result<(RespValue, usize), String> {
     let (int_str, end) = read_until_crlf(buffer, 1)?;
-    let int_value: i64 = int_str.parse().map_err(|_| "Invalid integer value".to_string())?;
+    let int_value: i64 = int_str
+        .parse()
+        .map_err(|_| "Invalid integer value".to_string())?;
     Ok((RespValue::Integer(int_value), end))
 }
 
 fn parse_array(buffer: &BytesMut) -> Result<(RespValue, usize), String> {
     let (count_str, mut pos) = read_until_crlf(buffer, 1)?;
-    let count: i64 = count_str.parse().map_err(|_| "Invalid array length".to_string())?;
+    let count: i64 = count_str
+        .parse()
+        .map_err(|_| "Invalid array length".to_string())?;
 
     if count == -1 {
         return Ok((RespValue::Nil, pos));

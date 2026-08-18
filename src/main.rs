@@ -1,10 +1,10 @@
 use tokio::net::TcpListener;
 
-mod server;
-mod resp;
-mod connection;
 mod commands;
+mod connection;
 mod db;
+mod resp;
+mod server;
 
 fn print_startup_banner() {
     const CYAN: &str = "\x1b[36m";
