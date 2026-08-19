@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     sync::{Arc, Mutex},
     time::Instant,
 };
@@ -11,7 +11,7 @@ pub use expiry::spawn_expiry_cleaner;
 
 pub struct Db {
     pub strings: HashMap<String, Bytes>,
-    pub lists: HashMap<String, Vec<Bytes>>,
+    pub lists: HashMap<String, VecDeque<Bytes>>,
     pub hashes: HashMap<String, HashMap<String, Bytes>>,
     pub sets: HashMap<String, HashSet<Bytes>>,
     pub expirations: HashMap<String, Instant>,
