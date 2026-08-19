@@ -1,10 +1,13 @@
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use bytes::Bytes;
+
+mod expiry;
+pub use expiry::spawn_expiry_cleaner;
 
 pub struct Db {
     pub strings: HashMap<String, Bytes>,
@@ -107,33 +110,4 @@ pub type SharedDb = std::sync::Arc<std::sync::Mutex<Db>>;
 
 pub fn create_shared_db() -> SharedDb {
     Arc::new(Mutex::new(Db::new()))
-}
-
-pub fn clear_expired_keys(db: &SharedDb) {
-    let now = Instant::now();
-    let mut db_lock = db.lock().unwrap();
-    let expired_keys: Vec<String> = db_lock
-        .expirations
-        .iter()
-        .filter_map(|(key, &expiration)| {
-            if expiration <= now {
-                Some(key.clone())
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    for key in expired_keys {
-        db_lock.remove(&key);
-    }
-}
-
-pub fn spawn_expiry_cleaner(db: SharedDb) {
-    tokio::spawn(async move {
-        loop {
-            tokio::time::sleep(Duration::from_millis(100)).await;
-            clear_expired_keys(&db);
-        }
-    });
 }
