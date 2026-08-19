@@ -2,6 +2,7 @@ mod expire;
 mod generic;
 mod list;
 mod server;
+mod set;
 mod string;
 
 use bytes::Bytes;
@@ -25,7 +26,9 @@ pub fn handle_command(request: RespValue, db: SharedDb) -> RespValue {
         | "GETSET" | "GETDEL" => string::handle(&command, args, db),
         "EXPIRE" | "PEXPIRE" | "TTL" | "PTTL" => expire::handle(&command, args, db),
         "DEL" | "EXISTS" | "TYPE" | "RENAME" | "KEYS" => generic::handle(&command, args, db),
-        "RPUSH" | "LPUSH" | "LRANGE" => list::handle(&command, args, db),
+        "RPUSH" | "LPUSH" | "LRANGE" | "LPOP" | "RPOP" | "LLEN" | "LINDEX" | "LSET" | "LREM" => {
+            list::handle(&command, args, db)
+        }
         _ => RespValue::Error(format!("ERR unknown command: {command}")),
     }
 }
