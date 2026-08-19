@@ -23,7 +23,7 @@ pub fn handle_command(request: RespValue, db: SharedDb) -> RespValue {
         "SET" | "GET" | "STRLEN" | "MGET" | "MSET" | "INCR" | "DECR" | "INCRBY" | "APPEND"
         | "GETSET" | "GETDEL" => string::handle(&command, args, db),
         "EXPIRE" | "PEXPIRE" | "TTL" | "PTTL" => expire::handle(&command, args, db),
-        "DEL" | "EXISTS" | "TYPE" | "RENAME" => generic::handle(&command, args, db),
+        "DEL" | "EXISTS" | "TYPE" | "RENAME" | "KEYS" => generic::handle(&command, args, db),
         _ => RespValue::Error(format!("ERR unknown command: {command}")),
     }
 }

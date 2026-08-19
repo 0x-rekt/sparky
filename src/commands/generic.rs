@@ -8,6 +8,7 @@ pub(super) fn handle(command: &str, args: &[RespValue], db: SharedDb) -> RespVal
         "EXISTS" => exists(args, db),
         "TYPE" => value_type(args, db),
         "RENAME" => rename(args, db),
+        "KEYS" => keys(args, db),
         _ => unreachable!(),
     }
 }
@@ -85,4 +86,46 @@ fn rename(args: &[RespValue], db: SharedDb) -> RespValue {
         }
         None => RespValue::Error("ERR no such key".to_string()),
     }
+}
+
+fn keys(args: &[RespValue], db: SharedDb) -> RespValue {
+    if args.len() != 1 {
+        return RespValue::Error("ERR wrong number of arguments for 'KEYS' command".to_string());
+    }
+
+    let pattern = match get_string_arg(args, 0, "KEYS") {
+        Ok(pattern) => String::from_utf8_lossy(&pattern).into_owned(),
+        Err(error) => return error,
+    };
+
+    let get_all = pattern == "*";
+    let prefix = if get_all {
+        None
+    } else if pattern.ends_with('*') {
+        Some(pattern.trim_end_matches('*'))
+    } else {
+        return RespValue::Error("ERR only supports '*' or 'prefix*' patterns".to_string());
+    };
+
+    let mut database = db.lock().unwrap();
+    let mut keys: Vec<String> = database
+        .keys()
+        .filter(|key| {
+            if get_all {
+                true
+            } else if let Some(prefix) = prefix {
+                key.starts_with(prefix)
+            } else {
+                false
+            }
+        })
+        .collect();
+    keys.sort_unstable();
+
+    let matching_keys = keys
+        .into_iter()
+        .map(|key| RespValue::BulkString(key.into_bytes().into()))
+        .collect();
+
+    RespValue::Array(matching_keys)
 }

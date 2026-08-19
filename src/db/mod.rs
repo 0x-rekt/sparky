@@ -58,6 +58,25 @@ impl Db {
             || self.sets.contains_key(key)
     }
 
+    pub fn keys(&mut self) -> impl Iterator<Item = String> {
+        let now = Instant::now();
+        let expired_keys: Vec<String> = self
+            .expirations
+            .iter()
+            .filter_map(|(key, &expiration)| (expiration <= now).then_some(key.clone()))
+            .collect();
+        for key in expired_keys {
+            self.remove(&key);
+        }
+
+        let mut keys = HashSet::new();
+        keys.extend(self.strings.keys().cloned());
+        keys.extend(self.lists.keys().cloned());
+        keys.extend(self.hashes.keys().cloned());
+        keys.extend(self.sets.keys().cloned());
+        keys.into_iter()
+    }
+
     pub fn set_expiry(&mut self, key: &String, expiry: Instant) -> bool {
         if !self.contains_key(key) {
             return false;
