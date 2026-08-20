@@ -1,5 +1,8 @@
 use super::get_string_arg;
-use crate::{db::SharedDb, resp::RespValue};
+use crate::{
+    db::{Db, SharedDb},
+    resp::RespValue,
+};
 
 pub(super) fn handle(command: &str, args: &[RespValue], db: SharedDb) -> RespValue {
     match command {
@@ -28,13 +31,8 @@ fn rpush(args: &[RespValue], db: SharedDb) -> RespValue {
 
     let mut database = db.lock().unwrap();
 
-    if database.strings.contains_key(&key)
-        || database.hashes.contains_key(&key)
-        || database.sets.contains_key(&key)
-    {
-        return RespValue::Error(
-            "WRONGTYPE Operation against a key holding the wrong kind of value".to_string(),
-        );
+    if let Err(error) = ensure_list(&mut database, &key) {
+        return error;
     }
 
     let list = database.lists.entry(key).or_default();
@@ -61,13 +59,8 @@ fn lpush(args: &[RespValue], db: SharedDb) -> RespValue {
 
     let mut database = db.lock().unwrap();
 
-    if database.strings.contains_key(&key)
-        || database.hashes.contains_key(&key)
-        || database.sets.contains_key(&key)
-    {
-        return RespValue::Error(
-            "WRONGTYPE Operation against a key holding the wrong kind of value".to_string(),
-        );
+    if let Err(error) = ensure_list(&mut database, &key) {
+        return error;
     }
 
     let list = database.lists.entry(key).or_default();
@@ -93,14 +86,9 @@ fn lrange(args: &[RespValue], db: SharedDb) -> RespValue {
     };
 
     let list = {
-        let database = db.lock().unwrap();
-        if database.strings.contains_key(&key)
-            || database.hashes.contains_key(&key)
-            || database.sets.contains_key(&key)
-        {
-            return RespValue::Error(
-                "WRONGTYPE Operation against a key holding the wrong kind of value".to_string(),
-            );
+        let mut database = db.lock().unwrap();
+        if let Err(error) = ensure_list(&mut database, &key) {
+            return error;
         }
         match database.lists.get(&key) {
             Some(list) => list.clone(),
@@ -164,15 +152,10 @@ fn llen(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    let database = db.lock().unwrap();
+    let mut database = db.lock().unwrap();
 
-    if database.strings.contains_key(&key)
-        || database.hashes.contains_key(&key)
-        || database.sets.contains_key(&key)
-    {
-        return RespValue::Error(
-            "WRONGTYPE Operation against a key holding the wrong kind of value".to_string(),
-        );
+    if let Err(error) = ensure_list(&mut database, &key) {
+        return error;
     }
 
     let length = database.lists.get(&key).map_or(0, |list| list.len());
@@ -207,6 +190,9 @@ fn lpop(args: &[RespValue], db: SharedDb) -> RespValue {
     };
 
     let mut database = db.lock().unwrap();
+    if let Err(error) = ensure_list(&mut database, &key) {
+        return error;
+    }
     let list = match database.lists.get_mut(&key) {
         Some(list) => list,
         None => {
@@ -269,6 +255,9 @@ fn rpop(args: &[RespValue], db: SharedDb) -> RespValue {
     };
 
     let mut database = db.lock().unwrap();
+    if let Err(error) = ensure_list(&mut database, &key) {
+        return error;
+    }
     let list = match database.lists.get_mut(&key) {
         Some(list) => list,
         None => {
@@ -323,7 +312,10 @@ fn lindex(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    let database = db.lock().unwrap();
+    let mut database = db.lock().unwrap();
+    if let Err(error) = ensure_list(&mut database, &key) {
+        return error;
+    }
     let list = match database.lists.get(&key) {
         Some(list) => list,
         None => return RespValue::Nil,
@@ -369,6 +361,9 @@ fn lset(args: &[RespValue], db: SharedDb) -> RespValue {
     };
 
     let mut database = db.lock().unwrap();
+    if let Err(error) = ensure_list(&mut database, &key) {
+        return error;
+    }
     let list = match database.lists.get_mut(&key) {
         Some(list) => list,
         None => return RespValue::Error("ERR no such key".to_string()),
@@ -415,6 +410,9 @@ fn lrem(args: &[RespValue], db: SharedDb) -> RespValue {
     };
 
     let mut database = db.lock().unwrap();
+    if let Err(error) = ensure_list(&mut database, &key) {
+        return error;
+    }
     let list = match database.lists.get_mut(&key) {
         Some(list) => list,
         None => return RespValue::Integer(0),
@@ -449,4 +447,17 @@ fn lrem(args: &[RespValue], db: SharedDb) -> RespValue {
 
     let removed_count = original_length - list.len();
     RespValue::Integer(removed_count as i64)
+}
+
+fn ensure_list(database: &mut Db, key: &String) -> Result<(), RespValue> {
+    if database.contains_key(key)
+        && (database.strings.contains_key(key)
+            || database.hashes.contains_key(key)
+            || database.sets.contains_key(key))
+    {
+        return Err(RespValue::Error(
+            "WRONGTYPE Operation against a key holding the wrong kind of value".to_string(),
+        ));
+    }
+    Ok(())
 }
