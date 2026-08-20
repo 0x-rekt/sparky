@@ -274,8 +274,8 @@ fn getdel(args: &[RespValue], db: SharedDb) -> RespValue {
         Ok(key) => String::from_utf8_lossy(&key).into_owned(),
         Err(error) => return error,
     };
-    db.lock()
-        .unwrap()
-        .remove(&key)
-        .map_or(RespValue::Nil, RespValue::BulkString)
+    let mut database = db.lock().unwrap();
+    let value = database.get(&key).cloned();
+    database.remove(&key);
+    value.map_or(RespValue::Nil, RespValue::BulkString)
 }

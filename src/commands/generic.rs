@@ -21,7 +21,7 @@ fn del(args: &[RespValue], db: SharedDb) -> RespValue {
         Ok(key) => String::from_utf8_lossy(&key).into_owned(),
         Err(error) => return error,
     };
-    RespValue::Integer(db.lock().unwrap().remove(&key).is_some() as i64)
+    RespValue::Integer(db.lock().unwrap().remove(&key) as i64)
 }
 
 fn exists(args: &[RespValue], db: SharedDb) -> RespValue {
@@ -79,8 +79,9 @@ fn rename(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
     let mut database = db.lock().unwrap();
-    match database.remove(&old_key) {
+    match database.get(&old_key).cloned() {
         Some(value) => {
+            database.remove(&old_key);
             database.insert_with_expiry(new_key, value, None);
             RespValue::SimpleString("OK".to_string())
         }

@@ -126,7 +126,9 @@ fn srem(args: &[RespValue], db: SharedDb) -> RespValue {
 
 fn smembers(args: &[RespValue], db: SharedDb) -> RespValue {
     if args.len() != 1 {
-        return RespValue::Error("ERR wrong number of arguments for 'smembers' command".to_string());
+        return RespValue::Error(
+            "ERR wrong number of arguments for 'smembers' command".to_string(),
+        );
     }
 
     let key = match get_string_arg(args, 0, "SMEMBERS") {
@@ -144,17 +146,14 @@ fn smembers(args: &[RespValue], db: SharedDb) -> RespValue {
         return RespValue::Array(vec![]);
     };
 
-    RespValue::Array(
-        set.iter()
-            .cloned()
-            .map(RespValue::BulkString)
-            .collect(),
-    )
+    RespValue::Array(set.iter().cloned().map(RespValue::BulkString).collect())
 }
 
 fn sismember(args: &[RespValue], db: SharedDb) -> RespValue {
     if args.len() != 2 {
-        return RespValue::Error("ERR wrong number of arguments for 'sismember' command".to_string());
+        return RespValue::Error(
+            "ERR wrong number of arguments for 'sismember' command".to_string(),
+        );
     }
 
     let key = match get_string_arg(args, 0, "SISMEMBER") {
@@ -225,12 +224,7 @@ fn sunion(args: &[RespValue], db: SharedDb) -> RespValue {
         }
     }
 
-    RespValue::Array(
-        union_set
-            .into_iter()
-            .map(RespValue::BulkString)
-            .collect(),
-    )
+    RespValue::Array(union_set.into_iter().map(RespValue::BulkString).collect())
 }
 
 fn sdiff(args: &[RespValue], db: SharedDb) -> RespValue {

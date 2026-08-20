@@ -1,5 +1,6 @@
 mod expire;
 mod generic;
+mod hash;
 mod list;
 mod server;
 mod set;
@@ -29,7 +30,10 @@ pub fn handle_command(request: RespValue, db: SharedDb) -> RespValue {
         "RPUSH" | "LPUSH" | "LRANGE" | "LPOP" | "RPOP" | "LLEN" | "LINDEX" | "LSET" | "LREM" => {
             list::handle(&command, args, db)
         }
-        "SADD" | "SINTER" | "SREM" | "SMEMBERS" | "SISMEMBER" | "SCARD" | "SUNION" | "SDIFF" => set::handle(&command, args, db),
+        "SADD" | "SINTER" | "SREM" | "SMEMBERS" | "SISMEMBER" | "SCARD" | "SUNION" | "SDIFF" => {
+            set::handle(&command, args, db)
+        }
+        "HSET" => hash::handle(&command, args, db),
         _ => RespValue::Error(format!("ERR unknown command: {command}")),
     }
 }

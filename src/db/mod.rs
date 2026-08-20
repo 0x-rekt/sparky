@@ -29,6 +29,9 @@ impl Db {
     }
 
     pub fn insert_with_expiry(&mut self, key: String, value: Bytes, expiry: Option<Instant>) {
+        self.lists.remove(&key);
+        self.hashes.remove(&key);
+        self.sets.remove(&key);
         self.strings.insert(key.clone(), value);
         match expiry {
             Some(exp) => {
@@ -40,13 +43,8 @@ impl Db {
         }
     }
 
-    pub fn get(&self, key: &String) -> Option<&Bytes> {
-        let now = Instant::now();
-        if let Some(expiration) = self.expirations.get(key)
-            && *expiration <= now
-        {
-            return None;
-        }
+    pub fn get(&mut self, key: &String) -> Option<&Bytes> {
+        self.remove_if_expired(key);
         self.strings.get(key)
     }
 
@@ -116,12 +114,13 @@ impl Db {
         }
     }
 
-    pub fn remove(&mut self, key: &String) -> Option<Bytes> {
-        self.lists.remove(key);
-        self.hashes.remove(key);
-        self.sets.remove(key);
+    pub fn remove(&mut self, key: &String) -> bool {
+        let existed = self.strings.remove(key).is_some()
+            | self.lists.remove(key).is_some()
+            | self.hashes.remove(key).is_some()
+            | self.sets.remove(key).is_some();
         self.expirations.remove(key);
-        self.strings.remove(key)
+        existed
     }
 }
 
