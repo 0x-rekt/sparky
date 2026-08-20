@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Compare Sparky with a real Redis server using the same redis-benchmark workload.
-# Usage: ./benchmark.sh [requests] [clients]
-# Example: ./benchmark.sh 100000 50
+# Full Sparky vs Redis benchmark: throughput (--csv) + latency percentile
+# distribution for strings, lists, hashes, and sets.
+#
+# Usage: ./benchmark_full.sh [requests] [clients]
+# Example: ./benchmark_full.sh 100000 50
 
-REQUESTS="${1:-${REQUESTS:-10000}}"
+REQUESTS="${1:-${REQUESTS:-100000}}"
 CLIENTS="${2:-${CLIENTS:-50}}"
 SPARKY_PORT="${SPARKY_PORT:-6970}"
 REDIS_PORT="${REDIS_PORT:-6380}"
@@ -16,18 +18,23 @@ TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/sparky-benchmark.XXXXXX")"
 SPARKY_AOF="${TMP_DIR}/sparky.aof"
 SPARKY_LOG="${TMP_DIR}/sparky.log"
 REDIS_LOG="${TMP_DIR}/redis.log"
+RESULTS_DIR="${ROOT_DIR}/benchmark_results"
 SPARKY_PID=""
 REDIS_PID=""
+
+# Commands to test. Add/remove based on what Sparky supports.
+# Format matches redis-benchmark's -t flag test names.
+TESTS="set,get,lpush,rpush,lpop,rpop,sadd,hset,lrange_100"
+
+mkdir -p "${RESULTS_DIR}"
 
 cleanup() {
     set +e
     if [[ -n "${SPARKY_PID}" ]] && kill -0 "${SPARKY_PID}" 2>/dev/null; then
-        kill "${SPARKY_PID}"
-        wait "${SPARKY_PID}" 2>/dev/null
+        kill "${SPARKY_PID}"; wait "${SPARKY_PID}" 2>/dev/null
     fi
     if [[ -n "${REDIS_PID}" ]] && kill -0 "${REDIS_PID}" 2>/dev/null; then
-        kill "${REDIS_PID}"
-        wait "${REDIS_PID}" 2>/dev/null
+        kill "${REDIS_PID}"; wait "${REDIS_PID}" 2>/dev/null
     fi
     rm -rf "${TMP_DIR}"
 }
@@ -41,8 +48,7 @@ require_command() {
 }
 
 wait_for_server() {
-    local port="$1"
-    local name="$2"
+    local port="$1" name="$2"
     for _ in {1..100}; do
         if redis-cli -h 127.0.0.1 -p "$port" PING 2>/dev/null | grep -qx PONG; then
             return 0
@@ -73,7 +79,6 @@ SPARKY_AOF_FSYNC="${SPARKY_AOF_FSYNC}" \
 SPARKY_PID=$!
 
 echo "Starting Redis on 127.0.0.1:${REDIS_PORT}"
-# Match Sparky's durable-write behavior as closely as possible.
 redis-server \
     --bind 127.0.0.1 \
     --port "${REDIS_PORT}" \
@@ -91,31 +96,39 @@ wait_for_server "${REDIS_PORT}" "Redis"
 
 echo
 echo "Benchmark configuration: requests=${REQUESTS}, clients=${CLIENTS}"
+echo "Tests: ${TESTS}"
 echo "Sparky AOF fsync=${SPARKY_AOF_FSYNC}; Redis AOF fsync=${REDIS_AOF_FSYNC}."
+echo "Results will be saved to: ${RESULTS_DIR}"
 echo
 
-run_benchmark() {
-    local name="$1"
-    local port="$2"
-    echo "===== ${name} (${port}) ====="
+run_throughput() {
+    local name="$1" port="$2" outfile="$3"
+    echo "===== ${name}: THROUGHPUT (${port}) ====="
     redis-benchmark \
-        -h 127.0.0.1 \
-        -p "${port}" \
-        -n "${REQUESTS}" \
-        -c "${CLIENTS}" \
-        --csv \
-        SET benchmark:key 0123456789012345
-    redis-benchmark \
-        -h 127.0.0.1 \
-        -p "${port}" \
-        -n "${REQUESTS}" \
-        -c "${CLIENTS}" \
-        --csv \
-        GET benchmark:key
+        -h 127.0.0.1 -p "${port}" \
+        -n "${REQUESTS}" -c "${CLIENTS}" \
+        -t "${TESTS}" \
+        --csv | tee "${outfile}"
     echo
 }
 
-run_benchmark "Sparky" "${SPARKY_PORT}"
-run_benchmark "Redis" "${REDIS_PORT}"
+run_latency() {
+    local name="$1" port="$2" outfile="$3"
+    echo "===== ${name}: LATENCY PERCENTILES (${port}) ====="
+    # Smaller -n keeps this section fast; percentile shape is stable at 20k+.
+    redis-benchmark \
+        -h 127.0.0.1 -p "${port}" \
+        -n 20000 -c "${CLIENTS}" \
+        -t "${TESTS}" | tee "${outfile}"
+    echo
+}
 
-echo "Benchmark complete; temporary server files and logs were cleaned up."
+run_throughput "Sparky" "${SPARKY_PORT}" "${RESULTS_DIR}/sparky_throughput.csv"
+run_throughput "Redis"  "${REDIS_PORT}"  "${RESULTS_DIR}/redis_throughput.csv"
+
+run_latency "Sparky" "${SPARKY_PORT}" "${RESULTS_DIR}/sparky_latency.txt"
+run_latency "Redis"  "${REDIS_PORT}"  "${RESULTS_DIR}/redis_latency.txt"
+
+echo "Benchmark complete."
+echo "Throughput CSVs and latency percentile logs saved in: ${RESULTS_DIR}"
+echo "Server logs (for debugging only) were in: ${TMP_DIR} (now cleaned up)"

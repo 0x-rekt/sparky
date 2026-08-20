@@ -320,7 +320,7 @@ The shell scripts and integration tests bind localhost ports and may require net
 
 ## Benchmarking
 
-The repository includes `benchmark.sh`, which starts Sparky and a separate Redis instance, runs identical explicit `SET` and `GET` workloads, and removes temporary files when it exits.
+The repository includes `benchmark.sh`, which starts Sparky and a separate Redis instance, runs identical string, list, hash, and set workloads, and saves CSV throughput and latency results in `benchmark_results/`.
 
 ```bash
 ./benchmark.sh
@@ -342,14 +342,21 @@ REDIS_AOF_FSYNC=everysec \
 ./benchmark.sh 100000 50
 ```
 
-One sample run produced approximately:
+The latest saved benchmark run produced the following throughput results:
 
 | Command | Sparky | Redis | Relative result |
 |---|---:|---:|---:|
-| `SET` | 107,527 req/s | 147,059 req/s | Sparky ~1.37× slower |
-| `GET` | 109,890 req/s | 144,928 req/s | Sparky ~1.32× slower |
+| `SET` | 111,732 req/s | 152,905 req/s | Sparky ~1.37× slower |
+| `GET` | 114,025 req/s | 163,666 req/s | Sparky ~1.44× slower |
+| `LPUSH` | 112,613 req/s | 163,399 req/s | Sparky ~1.45× slower |
+| `RPUSH` | 112,740 req/s | 166,389 req/s | Sparky ~1.48× slower |
+| `LPOP` | 113,507 req/s | 167,785 req/s | Sparky ~1.48× slower |
+| `RPOP` | 111,607 req/s | 168,919 req/s | Sparky ~1.51× slower |
+| `SADD` | 113,122 req/s | 167,785 req/s | Sparky ~1.48× slower |
+| `HSET` | 111,235 req/s | 165,837 req/s | Sparky ~1.49× slower |
+| `LRANGE_100` | 62,854 req/s | 86,207 req/s | Sparky ~1.37× slower |
 
-These numbers are machine- and configuration-dependent. They are included as an example rather than a universal performance claim. Benchmark results should be collected with the same request count, client count, AOF policy, value size, and workload on both servers.
+The benchmark used the same workload and AOF policy for both servers. `LRANGE_100` reads the first 100 elements after the benchmark setup has populated a longer list. These numbers are machine- and configuration-dependent; they are included as a reproducible result rather than a universal performance claim. The raw data is available in [`benchmark_results/`](benchmark_results/).
 
 ## Project layout
 

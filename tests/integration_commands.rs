@@ -24,6 +24,7 @@ fn start_server(port: u16, aof: &PathBuf) -> Child {
     let child = Command::new(env!("CARGO_BIN_EXE_sparky"))
         .env("SPARKY_PORT", port.to_string())
         .env("SPARKY_AOF", aof)
+        .env("SPARKY_AOF_FSYNC", "always")
         .spawn()
         .expect("start Sparky");
 

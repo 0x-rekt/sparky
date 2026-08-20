@@ -31,7 +31,12 @@ pub async fn run_actor(mut rx: mpsc::Receiver<Command>, mut db: Db, aof: Aof) {
                 }
                 let _ = cmd.response_sender.send(response);
             }
-            _ = expiry_tick.tick() => db.clear_expired_keys(),
+            _ = expiry_tick.tick() => {
+                db.clear_expired_keys();
+                if let Err(error) = aof.sync_if_due() {
+                    eprintln!("AOF sync failed: {error}");
+                }
+            },
             else => break,
         }
     }

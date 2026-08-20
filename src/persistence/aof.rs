@@ -71,14 +71,23 @@ impl Aof {
         let encoded = serializer::serialize(command);
         let mut writer = self.writer.lock().unwrap();
         writer.writer.write_all(&encoded)?;
-        writer.writer.flush()?;
 
-        if writer.policy == FsyncPolicy::Always
-            || (writer.policy == FsyncPolicy::EverySecond
-                && writer.last_sync.elapsed() >= Duration::from_secs(1))
+        match writer.policy {
+            FsyncPolicy::Always => sync_writer(&mut writer)?,
+            FsyncPolicy::EverySecond if writer.last_sync.elapsed() >= Duration::from_secs(1) => {
+                sync_writer(&mut writer)?;
+            }
+            FsyncPolicy::EverySecond | FsyncPolicy::No => {}
+        }
+        Ok(())
+    }
+
+    pub fn sync_if_due(&self) -> anyhow::Result<()> {
+        let mut writer = self.writer.lock().unwrap();
+        if writer.policy == FsyncPolicy::EverySecond
+            && writer.last_sync.elapsed() >= Duration::from_secs(1)
         {
-            writer.writer.get_ref().sync_data()?;
-            writer.last_sync = Instant::now();
+            sync_writer(&mut writer)?;
         }
         Ok(())
     }
@@ -97,6 +106,13 @@ impl Aof {
 
         Ok(())
     }
+}
+
+fn sync_writer(writer: &mut AofWriter) -> anyhow::Result<()> {
+    writer.writer.flush()?;
+    writer.writer.get_ref().sync_data()?;
+    writer.last_sync = Instant::now();
+    Ok(())
 }
 
 pub fn is_write_command(request: &RespValue) -> bool {

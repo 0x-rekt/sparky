@@ -82,17 +82,6 @@ fn lrange(args: &[RespValue], db: &mut Db) -> RespValue {
         Err(error) => return error,
     };
 
-    let list = {
-        let database = db;
-        if let Err(error) = ensure_list(database, &key) {
-            return error;
-        }
-        match database.lists.get(&key) {
-            Some(list) => list.clone(),
-            None => return RespValue::Array(vec![]),
-        }
-    };
-
     let start = match get_string_arg(args, 1, "LRANGE") {
         Ok(start) => match String::from_utf8_lossy(&start).parse::<isize>() {
             Ok(start) => start,
@@ -113,6 +102,14 @@ fn lrange(args: &[RespValue], db: &mut Db) -> RespValue {
         Err(error) => return error,
     };
 
+    if let Err(error) = ensure_list(db, &key) {
+        return error;
+    }
+
+    let Some(list) = db.lists.get(&key) else {
+        return RespValue::Array(vec![]);
+    };
+
     let length = list.len() as isize;
     let start = if start < 0 {
         (length + start).max(0)
@@ -131,9 +128,10 @@ fn lrange(args: &[RespValue], db: &mut Db) -> RespValue {
 
     let stop = stop.min(length - 1);
     RespValue::Array(
-        list.into_iter()
+        list.iter()
             .skip(start as usize)
             .take((stop - start + 1) as usize)
+            .cloned()
             .map(RespValue::BulkString)
             .collect(),
     )
