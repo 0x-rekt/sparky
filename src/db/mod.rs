@@ -104,6 +104,13 @@ impl Db {
         }
     }
 
+    pub fn persist(&mut self, key: &String) -> bool {
+        if !self.contains_key(key) {
+            return false;
+        }
+        self.expirations.remove(key).is_some()
+    }
+
     fn remove_if_expired(&mut self, key: &String) {
         if self
             .expirations

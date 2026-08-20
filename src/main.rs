@@ -3,6 +3,7 @@ use tokio::net::TcpListener;
 mod commands;
 mod connection;
 mod db;
+mod persistence;
 mod resp;
 mod server;
 
@@ -28,10 +29,15 @@ fn print_startup_banner() {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     print_startup_banner();
-    let listener = TcpListener::bind("127.0.0.1:6969").await.unwrap();
-    println!("Server listening on 127.0.0.1:6969");
     let db = db::create_shared_db();
+    let aof_path = std::env::var("SPARKY_AOF").unwrap_or_else(|_| "sparky.aof".to_string());
+    let aof = persistence::aof::Aof::open(&aof_path)?;
+    persistence::aof::Aof::replay(&aof_path, db.clone())?;
+    let port = std::env::var("SPARKY_PORT").unwrap_or_else(|_| "6969".to_string());
+    let address = format!("127.0.0.1:{port}");
+    let listener = TcpListener::bind(&address).await?;
+    println!("Server listening on {address}");
     db::spawn_expiry_cleaner(db.clone());
-    server::start_server(listener, db).await?;
+    server::start_server(listener, db, aof).await?;
     Ok(())
 }

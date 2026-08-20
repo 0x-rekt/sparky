@@ -10,8 +10,20 @@ pub(super) fn handle(command: &str, args: &[RespValue], db: SharedDb) -> RespVal
         "PEXPIRE" => set_expiry(args, db, true),
         "TTL" => get_ttl(args, db, false),
         "PTTL" => get_ttl(args, db, true),
+        "PERSIST" => persist(args, db),
         _ => unreachable!(),
     }
+}
+
+fn persist(args: &[RespValue], db: SharedDb) -> RespValue {
+    if args.len() != 1 {
+        return RespValue::Error("ERR wrong number of arguments for 'persist' command".to_string());
+    }
+    let key = match get_string_arg(args, 0, "persist") {
+        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Err(error) => return error,
+    };
+    RespValue::Integer(db.lock().unwrap().persist(&key) as i64)
 }
 
 fn set_expiry(args: &[RespValue], db: SharedDb, milliseconds: bool) -> RespValue {

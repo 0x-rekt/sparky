@@ -25,7 +25,7 @@ pub fn handle_command(request: RespValue, db: SharedDb) -> RespValue {
         "PING" | "ECHO" => server::handle(&command, args),
         "SET" | "GET" | "STRLEN" | "MGET" | "MSET" | "INCR" | "DECR" | "INCRBY" | "APPEND"
         | "GETSET" | "GETDEL" => string::handle(&command, args, db),
-        "EXPIRE" | "PEXPIRE" | "TTL" | "PTTL" => expire::handle(&command, args, db),
+        "EXPIRE" | "PEXPIRE" | "TTL" | "PTTL" | "PERSIST" => expire::handle(&command, args, db),
         "DEL" | "EXISTS" | "TYPE" | "RENAME" | "KEYS" => generic::handle(&command, args, db),
         "RPUSH" | "LPUSH" | "LRANGE" | "LPOP" | "RPOP" | "LLEN" | "LINDEX" | "LSET" | "LREM" => {
             list::handle(&command, args, db)
