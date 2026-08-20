@@ -33,7 +33,8 @@ pub fn handle_command(request: RespValue, db: SharedDb) -> RespValue {
         "SADD" | "SINTER" | "SREM" | "SMEMBERS" | "SISMEMBER" | "SCARD" | "SUNION" | "SDIFF" => {
             set::handle(&command, args, db)
         }
-        "HSET" => hash::handle(&command, args, db),
+        "HSET" | "HGET" | "HDEL" | "HEXISTS" | "HGETALL" | "HKEYS" | "HVALS" | "HLEN"
+        | "HINCRBY" => hash::handle(&command, args, db),
         _ => RespValue::Error(format!("ERR unknown command: {command}")),
     }
 }
