@@ -3,6 +3,7 @@ use std::{
     io::{BufWriter, Write},
     path::Path,
     sync::{Arc, Mutex},
+    time::{Duration, Instant},
 };
 
 use anyhow::Context;
@@ -14,13 +15,43 @@ use crate::{
     resp::{RespValue, parser::parse_message, serializer},
 };
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FsyncPolicy {
+    Always,
+    EverySecond,
+    No,
+}
+
+impl FsyncPolicy {
+    pub fn from_env() -> anyhow::Result<Self> {
+        match std::env::var("SPARKY_AOF_FSYNC")
+            .unwrap_or_else(|_| "everysec".to_string())
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "always" => Ok(Self::Always),
+            "everysec" | "every-second" => Ok(Self::EverySecond),
+            "no" => Ok(Self::No),
+            value => Err(anyhow::anyhow!(
+                "invalid SPARKY_AOF_FSYNC '{value}'; expected always, everysec, or no"
+            )),
+        }
+    }
+}
+
+struct AofWriter {
+    writer: BufWriter<File>,
+    policy: FsyncPolicy,
+    last_sync: Instant,
+}
+
 #[derive(Clone)]
 pub struct Aof {
-    writer: Arc<Mutex<BufWriter<File>>>,
+    writer: Arc<Mutex<AofWriter>>,
 }
 
 impl Aof {
-    pub fn open(path: impl AsRef<Path>) -> anyhow::Result<Self> {
+    pub fn open_with_policy(path: impl AsRef<Path>, policy: FsyncPolicy) -> anyhow::Result<Self> {
         let file = OpenOptions::new()
             .create(true)
             .append(true)
@@ -28,16 +59,27 @@ impl Aof {
             .with_context(|| format!("failed to open AOF at {}", path.as_ref().display()))?;
 
         Ok(Self {
-            writer: Arc::new(Mutex::new(BufWriter::new(file))),
+            writer: Arc::new(Mutex::new(AofWriter {
+                writer: BufWriter::new(file),
+                policy,
+                last_sync: Instant::now(),
+            })),
         })
     }
 
     pub fn append(&self, command: &RespValue) -> anyhow::Result<()> {
         let encoded = serializer::serialize(command);
         let mut writer = self.writer.lock().unwrap();
-        writer.write_all(&encoded)?;
-        writer.flush()?;
-        writer.get_ref().sync_data()?;
+        writer.writer.write_all(&encoded)?;
+        writer.writer.flush()?;
+
+        if writer.policy == FsyncPolicy::Always
+            || (writer.policy == FsyncPolicy::EverySecond
+                && writer.last_sync.elapsed() >= Duration::from_secs(1))
+        {
+            writer.writer.get_ref().sync_data()?;
+            writer.last_sync = Instant::now();
+        }
         Ok(())
     }
 

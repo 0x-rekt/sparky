@@ -31,7 +31,8 @@ async fn main() -> anyhow::Result<()> {
     print_startup_banner();
     let mut db = db::Db::new();
     let aof_path = std::env::var("SPARKY_AOF").unwrap_or_else(|_| "sparky.aof".to_string());
-    let aof = persistence::aof::Aof::open(&aof_path)?;
+    let fsync_policy = persistence::aof::FsyncPolicy::from_env()?;
+    let aof = persistence::aof::Aof::open_with_policy(&aof_path, fsync_policy)?;
     persistence::aof::Aof::replay(&aof_path, &mut db)?;
     let (tx, rx) = tokio::sync::mpsc::channel(1024);
     let db_handle = db::actor::DbHandle::new(tx);
