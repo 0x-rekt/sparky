@@ -14,14 +14,18 @@ pub(super) fn handle(command: &str, args: &[RespValue], db: &mut Db) -> RespValu
 }
 
 fn del(args: &[RespValue], db: &mut Db) -> RespValue {
-    if args.len() != 1 {
+    if args.is_empty() {
         return RespValue::Error("ERR wrong number of arguments for 'DEL' command".to_string());
     }
-    let key = match get_string_arg(args, 0, "DEL") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
-        Err(error) => return error,
-    };
-    RespValue::Integer(db.remove(&key) as i64)
+    let mut deleted = 0;
+    for arg in args {
+        let key = match get_string_arg(std::slice::from_ref(arg), 0, "DEL") {
+            Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+            Err(error) => return error,
+        };
+        deleted += db.remove(&key) as i64;
+    }
+    RespValue::Integer(deleted)
 }
 
 fn exists(args: &[RespValue], db: &mut Db) -> RespValue {
@@ -78,14 +82,10 @@ fn rename(args: &[RespValue], db: &mut Db) -> RespValue {
         Ok(key) => String::from_utf8_lossy(&key).into_owned(),
         Err(error) => return error,
     };
-    let database = db;
-    match database.get(&old_key).cloned() {
-        Some(value) => {
-            database.remove(&old_key);
-            database.insert_with_expiry(new_key, value, None);
-            RespValue::SimpleString("OK".to_string())
-        }
-        None => RespValue::Error("ERR no such key".to_string()),
+    if db.rename(&old_key, &new_key) {
+        RespValue::SimpleString("OK".to_string())
+    } else {
+        RespValue::Error("ERR no such key".to_string())
     }
 }
 

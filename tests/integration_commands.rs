@@ -74,8 +74,9 @@ fn send(stream: &mut TcpStream, parts: &[&str]) -> String {
         }
         b'$' => {
             read_line(stream, &mut line, &mut response);
-            let length: usize = String::from_utf8_lossy(&line).parse().unwrap();
-            if length != usize::MAX {
+            let length: i64 = String::from_utf8_lossy(&line).parse().unwrap();
+            if length >= 0 {
+                let length = length as usize;
                 let mut payload = vec![0; length + 2];
                 stream.read_exact(&mut payload).unwrap();
                 response.extend_from_slice(&payload);
@@ -141,6 +142,14 @@ fn commands_and_aof_replay_survive_restart() {
         "*2\r\n$3\r\nred\r\n$4\r\nblue\r\n"
     );
     assert_eq!(
+        send(&mut client, &["RENAME", "colors", "renamed_colors"]),
+        "+OK\r\n"
+    );
+    assert_eq!(
+        send(&mut client, &["LRANGE", "renamed_colors", "0", "-1"]),
+        "*2\r\n$3\r\nred\r\n$4\r\nblue\r\n"
+    );
+    assert_eq!(
         send(&mut client, &["HSET", "user", "name", "alice"]),
         ":1\r\n"
     );
@@ -148,15 +157,58 @@ fn commands_and_aof_replay_survive_restart() {
         send(&mut client, &["HGET", "user", "name"]),
         "$5\r\nalice\r\n"
     );
+    assert_eq!(send(&mut client, &["RENAME", "user", "user:1"]), "+OK\r\n");
+    assert_eq!(
+        send(&mut client, &["HGET", "user:1", "name"]),
+        "$5\r\nalice\r\n"
+    );
     assert_eq!(send(&mut client, &["SADD", "tags", "rust"]), ":1\r\n");
     assert_eq!(send(&mut client, &["SISMEMBER", "tags", "rust"]), ":1\r\n");
+    assert_eq!(send(&mut client, &["RENAME", "tags", "tags:1"]), "+OK\r\n");
+    assert_eq!(
+        send(&mut client, &["SISMEMBER", "tags:1", "rust"]),
+        ":1\r\n"
+    );
     assert_eq!(
         send(&mut client, &["SET", "temporary", "value", "EX", "60"]),
         "+OK\r\n"
     );
-    assert_eq!(send(&mut client, &["PERSIST", "temporary"]), ":1\r\n");
+    assert_eq!(
+        send(&mut client, &["RENAME", "temporary", "renamed_temporary"]),
+        "+OK\r\n"
+    );
+    assert_ne!(send(&mut client, &["TTL", "renamed_temporary"]), ":-1\r\n");
+    assert_eq!(
+        send(&mut client, &["PERSIST", "renamed_temporary"]),
+        ":1\r\n"
+    );
+    assert_eq!(send(&mut client, &["TTL", "renamed_temporary"]), ":-1\r\n");
     assert_eq!(send(&mut client, &["SET", "deleted", "value"]), "+OK\r\n");
     assert_eq!(send(&mut client, &["DEL", "deleted"]), ":1\r\n");
+    assert_eq!(
+        send(&mut client, &["SET", "del:string", "value"]),
+        "+OK\r\n"
+    );
+    assert_eq!(
+        send(&mut client, &["HSET", "del:hash", "field", "value"]),
+        ":1\r\n"
+    );
+    assert_eq!(send(&mut client, &["SADD", "del:set", "value"]), ":1\r\n");
+    assert_eq!(send(&mut client, &["RPUSH", "del:list", "value"]), ":1\r\n");
+    assert_eq!(
+        send(
+            &mut client,
+            &[
+                "DEL",
+                "del:string",
+                "del:hash",
+                "del:set",
+                "del:list",
+                "del:string"
+            ]
+        ),
+        ":4\r\n"
+    );
     drop(client);
     stop_server(server);
 
@@ -170,16 +222,37 @@ fn commands_and_aof_replay_survive_restart() {
 
     assert_eq!(send(&mut client, &["GET", "greeting"]), "$5\r\nhello\r\n");
     assert_eq!(
-        send(&mut client, &["LRANGE", "colors", "0", "-1"]),
+        send(&mut client, &["LRANGE", "renamed_colors", "0", "-1"]),
         "*2\r\n$3\r\nred\r\n$4\r\nblue\r\n"
     );
     assert_eq!(
-        send(&mut client, &["HGET", "user", "name"]),
+        send(&mut client, &["HGET", "user:1", "name"]),
         "$5\r\nalice\r\n"
     );
-    assert_eq!(send(&mut client, &["SISMEMBER", "tags", "rust"]), ":1\r\n");
+    assert_eq!(
+        send(&mut client, &["SISMEMBER", "tags:1", "rust"]),
+        ":1\r\n"
+    );
     assert_eq!(send(&mut client, &["EXISTS", "deleted"]), ":0\r\n");
-    assert_eq!(send(&mut client, &["TTL", "temporary"]), ":-1\r\n");
+    assert_eq!(send(&mut client, &["TTL", "renamed_temporary"]), ":-1\r\n");
+    assert_eq!(send(&mut client, &["EXISTS", "del:string"]), ":0\r\n");
+    assert_eq!(send(&mut client, &["EXISTS", "del:hash"]), ":0\r\n");
+    assert_eq!(send(&mut client, &["EXISTS", "del:set"]), ":0\r\n");
+    assert_eq!(send(&mut client, &["EXISTS", "del:list"]), ":0\r\n");
+    assert_eq!(send(&mut client, &["SET", "flush:key", "value"]), "+OK\r\n");
+    assert_eq!(send(&mut client, &["FLUSHDB"]), "+OK\r\n");
+    assert_eq!(send(&mut client, &["DBSIZE"]), ":0\r\n");
+
+    drop(client);
+    stop_server(server);
+
+    server = start_server(port, &aof);
+    let mut client = TcpStream::connect(("127.0.0.1", port)).unwrap();
+    client
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .unwrap();
+    assert_eq!(send(&mut client, &["DBSIZE"]), ":0\r\n");
+    assert_eq!(send(&mut client, &["GET", "flush:key"]), "$-1\r\n");
 
     drop(client);
     stop_server(server);

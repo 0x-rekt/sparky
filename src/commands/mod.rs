@@ -22,7 +22,9 @@ pub fn handle_command(request: RespValue, db: &mut Db) -> RespValue {
     let command = String::from_utf8_lossy(command).to_ascii_uppercase();
 
     match command.as_str() {
-        "PING" | "ECHO" => server::handle(&command, args),
+        "PING" | "ECHO" | "INFO" | "FLUSHALL" | "DBSIZE" | "FLUSHDB" => {
+            server::handle(&command, args, db)
+        }
         "SET" | "GET" | "STRLEN" | "MGET" | "MSET" | "INCR" | "DECR" | "INCRBY" | "APPEND"
         | "GETSET" | "GETDEL" => string::handle(&command, args, db),
         "EXPIRE" | "PEXPIRE" | "TTL" | "PTTL" | "PERSIST" => expire::handle(&command, args, db),

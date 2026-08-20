@@ -93,5 +93,7 @@ pub fn is_write_command(request: &RespValue) -> bool {
             | "SREM"
             | "RENAME"
             | "PERSIST"
+            | "FLUSHALL"
+            | "FLUSHDB"
     )
 }

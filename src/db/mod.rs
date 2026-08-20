@@ -139,4 +139,41 @@ impl Db {
         self.expirations.remove(key);
         existed
     }
+
+    pub fn rename(&mut self, old_key: &String, new_key: &String) -> bool {
+        self.remove_if_expired(old_key);
+
+        let exists = self.strings.contains_key(old_key)
+            || self.lists.contains_key(old_key)
+            || self.hashes.contains_key(old_key)
+            || self.sets.contains_key(old_key);
+        if !exists {
+            return false;
+        }
+
+        if old_key == new_key {
+            return true;
+        }
+
+        let expiry = self.expirations.remove(old_key);
+        self.remove(new_key);
+
+        if let Some(value) = self.strings.remove(old_key) {
+            self.strings.insert(new_key.clone(), value);
+        }
+        if let Some(value) = self.lists.remove(old_key) {
+            self.lists.insert(new_key.clone(), value);
+        }
+        if let Some(value) = self.hashes.remove(old_key) {
+            self.hashes.insert(new_key.clone(), value);
+        }
+        if let Some(value) = self.sets.remove(old_key) {
+            self.sets.insert(new_key.clone(), value);
+        }
+        if let Some(expiry) = expiry {
+            self.expirations.insert(new_key.clone(), expiry);
+        }
+
+        true
+    }
 }
