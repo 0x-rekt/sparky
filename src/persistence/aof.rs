@@ -10,7 +10,7 @@ use bytes::BytesMut;
 
 use crate::{
     commands::handle_command,
-    db::SharedDb,
+    db::Db,
     resp::{RespValue, parser::parse_message, serializer},
 };
 
@@ -41,7 +41,7 @@ impl Aof {
         Ok(())
     }
 
-    pub fn replay(path: impl AsRef<Path>, db: SharedDb) -> anyhow::Result<()> {
+    pub fn replay(path: impl AsRef<Path>, db: &mut Db) -> anyhow::Result<()> {
         let data = std::fs::read(path.as_ref())
             .with_context(|| format!("failed to read AOF at {}", path.as_ref().display()))?;
         let mut buffer = BytesMut::from(data.as_slice());
@@ -49,7 +49,7 @@ impl Aof {
         while !buffer.is_empty() {
             let (command, consumed) = parse_message(&buffer)
                 .map_err(|error| anyhow::anyhow!("invalid AOF entry: {error}"))?;
-            handle_command(command, db.clone());
+            handle_command(command, db);
             let _ = buffer.split_to(consumed);
         }
 

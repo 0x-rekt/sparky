@@ -1,12 +1,9 @@
 use std::collections::HashSet;
 
 use super::get_string_arg;
-use crate::{
-    db::{Db, SharedDb},
-    resp::RespValue,
-};
+use crate::{db::Db, resp::RespValue};
 
-pub(super) fn handle(command: &str, args: &[RespValue], db: SharedDb) -> RespValue {
+pub(super) fn handle(command: &str, args: &[RespValue], db: &mut Db) -> RespValue {
     match command {
         "SADD" => sadd(args, db),
         "SINTER" => sinter(args, db),
@@ -20,7 +17,7 @@ pub(super) fn handle(command: &str, args: &[RespValue], db: SharedDb) -> RespVal
     }
 }
 
-fn sadd(args: &[RespValue], db: SharedDb) -> RespValue {
+fn sadd(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() < 2 {
         return RespValue::Error("ERR wrong number of arguments for 'sadd' command".to_string());
     }
@@ -30,7 +27,7 @@ fn sadd(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    let mut database = db.lock().unwrap();
+    let database = db;
 
     if database.contains_key(&key) && !database.sets.contains_key(&key) {
         return RespValue::Error(
@@ -54,12 +51,12 @@ fn sadd(args: &[RespValue], db: SharedDb) -> RespValue {
     RespValue::Integer(added_count)
 }
 
-fn sinter(args: &[RespValue], db: SharedDb) -> RespValue {
+fn sinter(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.is_empty() {
         return RespValue::Error("ERR wrong number of arguments for 'sinter' command".to_string());
     }
 
-    let mut database = db.lock().unwrap();
+    let database = db;
     let mut intersection: Option<HashSet<bytes::Bytes>> = None;
 
     for arg in args {
@@ -67,7 +64,7 @@ fn sinter(args: &[RespValue], db: SharedDb) -> RespValue {
             Ok(key) => String::from_utf8_lossy(&key).into_owned(),
             Err(error) => return error,
         };
-        if let Err(error) = ensure_set(&mut database, &key) {
+        if let Err(error) = ensure_set(database, &key) {
             return error;
         }
 
@@ -90,7 +87,7 @@ fn sinter(args: &[RespValue], db: SharedDb) -> RespValue {
     )
 }
 
-fn srem(args: &[RespValue], db: SharedDb) -> RespValue {
+fn srem(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() < 2 {
         return RespValue::Error("ERR wrong number of arguments for 'srem' command".to_string());
     }
@@ -100,9 +97,9 @@ fn srem(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    let mut database = db.lock().unwrap();
+    let database = db;
 
-    if let Err(error) = ensure_set(&mut database, &key) {
+    if let Err(error) = ensure_set(database, &key) {
         return error;
     }
 
@@ -124,7 +121,7 @@ fn srem(args: &[RespValue], db: SharedDb) -> RespValue {
     RespValue::Integer(removed_count)
 }
 
-fn smembers(args: &[RespValue], db: SharedDb) -> RespValue {
+fn smembers(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 1 {
         return RespValue::Error(
             "ERR wrong number of arguments for 'smembers' command".to_string(),
@@ -136,9 +133,9 @@ fn smembers(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    let mut database = db.lock().unwrap();
+    let database = db;
 
-    if let Err(error) = ensure_set(&mut database, &key) {
+    if let Err(error) = ensure_set(database, &key) {
         return error;
     }
 
@@ -149,7 +146,7 @@ fn smembers(args: &[RespValue], db: SharedDb) -> RespValue {
     RespValue::Array(set.iter().cloned().map(RespValue::BulkString).collect())
 }
 
-fn sismember(args: &[RespValue], db: SharedDb) -> RespValue {
+fn sismember(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 2 {
         return RespValue::Error(
             "ERR wrong number of arguments for 'sismember' command".to_string(),
@@ -166,9 +163,9 @@ fn sismember(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    let mut database = db.lock().unwrap();
+    let database = db;
 
-    if let Err(error) = ensure_set(&mut database, &key) {
+    if let Err(error) = ensure_set(database, &key) {
         return error;
     }
 
@@ -179,7 +176,7 @@ fn sismember(args: &[RespValue], db: SharedDb) -> RespValue {
     RespValue::Integer(if set.contains(&value) { 1 } else { 0 })
 }
 
-fn scard(args: &[RespValue], db: SharedDb) -> RespValue {
+fn scard(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 1 {
         return RespValue::Error("ERR wrong number of arguments for 'scard' command".to_string());
     }
@@ -189,9 +186,9 @@ fn scard(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    let mut database = db.lock().unwrap();
+    let database = db;
 
-    if let Err(error) = ensure_set(&mut database, &key) {
+    if let Err(error) = ensure_set(database, &key) {
         return error;
     }
 
@@ -202,12 +199,12 @@ fn scard(args: &[RespValue], db: SharedDb) -> RespValue {
     RespValue::Integer(set.len() as i64)
 }
 
-fn sunion(args: &[RespValue], db: SharedDb) -> RespValue {
+fn sunion(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.is_empty() {
         return RespValue::Error("ERR wrong number of arguments for 'sunion' command".to_string());
     }
 
-    let mut database = db.lock().unwrap();
+    let database = db;
     let mut union_set: HashSet<bytes::Bytes> = HashSet::new();
 
     for arg in args {
@@ -215,7 +212,7 @@ fn sunion(args: &[RespValue], db: SharedDb) -> RespValue {
             Ok(key) => String::from_utf8_lossy(&key).into_owned(),
             Err(error) => return error,
         };
-        if let Err(error) = ensure_set(&mut database, &key) {
+        if let Err(error) = ensure_set(database, &key) {
             return error;
         }
 
@@ -227,12 +224,12 @@ fn sunion(args: &[RespValue], db: SharedDb) -> RespValue {
     RespValue::Array(union_set.into_iter().map(RespValue::BulkString).collect())
 }
 
-fn sdiff(args: &[RespValue], db: SharedDb) -> RespValue {
+fn sdiff(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.is_empty() {
         return RespValue::Error("ERR wrong number of arguments for 'sdiff' command".to_string());
     }
 
-    let mut database = db.lock().unwrap();
+    let database = db;
     let mut diff_set: Option<HashSet<bytes::Bytes>> = None;
 
     for arg in args {
@@ -240,7 +237,7 @@ fn sdiff(args: &[RespValue], db: SharedDb) -> RespValue {
             Ok(key) => String::from_utf8_lossy(&key).into_owned(),
             Err(error) => return error,
         };
-        if let Err(error) = ensure_set(&mut database, &key) {
+        if let Err(error) = ensure_set(database, &key) {
             return error;
         }
 

@@ -1,13 +1,11 @@
 use std::{
     collections::{HashMap, HashSet, VecDeque},
-    sync::{Arc, Mutex},
     time::Instant,
 };
 
 use bytes::Bytes;
 
-mod expiry;
-pub use expiry::spawn_expiry_cleaner;
+pub mod actor;
 
 pub struct Db {
     pub strings: HashMap<String, Bytes>,
@@ -111,6 +109,18 @@ impl Db {
         self.expirations.remove(key).is_some()
     }
 
+    pub fn clear_expired_keys(&mut self) {
+        let now = Instant::now();
+        let expired_keys: Vec<String> = self
+            .expirations
+            .iter()
+            .filter_map(|(key, &expiration)| (expiration <= now).then_some(key.clone()))
+            .collect();
+        for key in expired_keys {
+            self.remove(&key);
+        }
+    }
+
     fn remove_if_expired(&mut self, key: &String) {
         if self
             .expirations
@@ -129,10 +139,4 @@ impl Db {
         self.expirations.remove(key);
         existed
     }
-}
-
-pub type SharedDb = std::sync::Arc<std::sync::Mutex<Db>>;
-
-pub fn create_shared_db() -> SharedDb {
-    Arc::new(Mutex::new(Db::new()))
 }

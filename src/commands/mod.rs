@@ -8,9 +8,9 @@ mod string;
 
 use bytes::Bytes;
 
-use crate::{db::SharedDb, resp::RespValue};
+use crate::{db::Db, resp::RespValue};
 
-pub fn handle_command(request: RespValue, db: SharedDb) -> RespValue {
+pub fn handle_command(request: RespValue, db: &mut Db) -> RespValue {
     let RespValue::Array(parts) = request else {
         return RespValue::Error("ERR invalid command format".to_string());
     };

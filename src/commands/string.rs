@@ -2,11 +2,11 @@ use std::time::{Duration, Instant};
 
 use bytes::{Bytes, BytesMut};
 
-use crate::{db::SharedDb, resp::RespValue};
+use crate::{db::Db, resp::RespValue};
 
 use super::{get_nonnegative_integer, get_string_arg};
 
-pub(super) fn handle(command: &str, args: &[RespValue], db: SharedDb) -> RespValue {
+pub(super) fn handle(command: &str, args: &[RespValue], db: &mut Db) -> RespValue {
     match command {
         "SET" => set(args, db),
         "GET" => get(args, db),
@@ -23,7 +23,7 @@ pub(super) fn handle(command: &str, args: &[RespValue], db: SharedDb) -> RespVal
     }
 }
 
-fn set(args: &[RespValue], db: SharedDb) -> RespValue {
+fn set(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() < 2 {
         return RespValue::Error("ERR wrong number of arguments for 'set' command".to_string());
     }
@@ -91,7 +91,7 @@ fn set(args: &[RespValue], db: SharedDb) -> RespValue {
         }
     }
 
-    let mut database = db.lock().unwrap();
+    let database = db;
     let old_value = database.get(&key).cloned();
     let exists = database.contains_key(&key);
     if (nx && exists) || (xx && !exists) {
@@ -109,7 +109,7 @@ fn set(args: &[RespValue], db: SharedDb) -> RespValue {
     }
 }
 
-fn get(args: &[RespValue], db: SharedDb) -> RespValue {
+fn get(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 1 {
         return RespValue::Error("ERR wrong number of arguments for 'get' command".to_string());
     }
@@ -117,14 +117,12 @@ fn get(args: &[RespValue], db: SharedDb) -> RespValue {
         Ok(key) => String::from_utf8_lossy(&key).into_owned(),
         Err(error) => return error,
     };
-    db.lock()
-        .unwrap()
-        .get(&key)
+    db.get(&key)
         .cloned()
         .map_or(RespValue::Nil, RespValue::BulkString)
 }
 
-fn strlen(args: &[RespValue], db: SharedDb) -> RespValue {
+fn strlen(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 1 {
         return RespValue::Error("ERR wrong number of arguments for 'strlen' command".to_string());
     }
@@ -132,14 +130,14 @@ fn strlen(args: &[RespValue], db: SharedDb) -> RespValue {
         Ok(key) => String::from_utf8_lossy(&key).into_owned(),
         Err(error) => return error,
     };
-    RespValue::Integer(db.lock().unwrap().strings.get(&key).map_or(0, Bytes::len) as i64)
+    RespValue::Integer(db.strings.get(&key).map_or(0, Bytes::len) as i64)
 }
 
-fn mget(args: &[RespValue], db: SharedDb) -> RespValue {
+fn mget(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.is_empty() {
         return RespValue::Error("ERR wrong number of arguments for 'mget' command".to_string());
     }
-    let database = db.lock().unwrap();
+    let database = db;
     RespValue::Array(
         args.iter()
             .map(
@@ -156,11 +154,11 @@ fn mget(args: &[RespValue], db: SharedDb) -> RespValue {
     )
 }
 
-fn mset(args: &[RespValue], db: SharedDb) -> RespValue {
+fn mset(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.is_empty() || !args.len().is_multiple_of(2) {
         return RespValue::Error("ERR wrong number of arguments for 'mset' command".to_string());
     }
-    let mut database = db.lock().unwrap();
+    let database = db;
     for pair in args.chunks_exact(2) {
         let key = match get_string_arg(pair, 0, "mset") {
             Ok(key) => String::from_utf8_lossy(&key).into_owned(),
@@ -175,7 +173,7 @@ fn mset(args: &[RespValue], db: SharedDb) -> RespValue {
     RespValue::SimpleString("OK".to_string())
 }
 
-fn increment(args: &[RespValue], db: SharedDb, amount: i64) -> RespValue {
+fn increment(args: &[RespValue], db: &mut Db, amount: i64) -> RespValue {
     if args.len() != 1 {
         return RespValue::Error("ERR wrong number of arguments".to_string());
     }
@@ -183,7 +181,7 @@ fn increment(args: &[RespValue], db: SharedDb, amount: i64) -> RespValue {
         Ok(key) => String::from_utf8_lossy(&key).into_owned(),
         Err(error) => return error,
     };
-    let mut database = db.lock().unwrap();
+    let database = db;
     let current = match database.get(&key) {
         Some(value) => match String::from_utf8_lossy(value).parse::<i64>() {
             Ok(value) => value,
@@ -198,7 +196,7 @@ fn increment(args: &[RespValue], db: SharedDb, amount: i64) -> RespValue {
     RespValue::Integer(value)
 }
 
-fn incrby(args: &[RespValue], db: SharedDb) -> RespValue {
+fn incrby(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 2 {
         return RespValue::Error("ERR wrong number of arguments for 'incrby' command".to_string());
     }
@@ -213,7 +211,7 @@ fn incrby(args: &[RespValue], db: SharedDb) -> RespValue {
         Ok(key) => String::from_utf8_lossy(&key).into_owned(),
         Err(error) => return error,
     };
-    let mut database = db.lock().unwrap();
+    let database = db;
     let current = database
         .get(&key)
         .and_then(|value| String::from_utf8_lossy(value).parse::<i64>().ok())
@@ -226,7 +224,7 @@ fn incrby(args: &[RespValue], db: SharedDb) -> RespValue {
     RespValue::Integer(value)
 }
 
-fn append(args: &[RespValue], db: SharedDb) -> RespValue {
+fn append(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 2 {
         return RespValue::Error("ERR wrong number of arguments for 'append' command".to_string());
     }
@@ -238,7 +236,7 @@ fn append(args: &[RespValue], db: SharedDb) -> RespValue {
         Ok(value) => value,
         Err(error) => return error,
     };
-    let mut database = db.lock().unwrap();
+    let database = db;
     let mut value = database.get(&key).cloned().unwrap_or_default();
     let mut combined = BytesMut::from(value.as_ref());
     combined.extend_from_slice(&append_value);
@@ -248,7 +246,7 @@ fn append(args: &[RespValue], db: SharedDb) -> RespValue {
     RespValue::Integer(length)
 }
 
-fn getset(args: &[RespValue], db: SharedDb) -> RespValue {
+fn getset(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 2 {
         return RespValue::Error("ERR wrong number of arguments for 'getset' command".to_string());
     }
@@ -260,13 +258,13 @@ fn getset(args: &[RespValue], db: SharedDb) -> RespValue {
         Ok(value) => value,
         Err(error) => return error,
     };
-    let mut database = db.lock().unwrap();
+    let database = db;
     let old = database.get(&key).cloned();
     database.insert_with_expiry(key, value, None);
     old.map_or(RespValue::Nil, RespValue::BulkString)
 }
 
-fn getdel(args: &[RespValue], db: SharedDb) -> RespValue {
+fn getdel(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 1 {
         return RespValue::Error("ERR wrong number of arguments for 'getdel' command".to_string());
     }
@@ -274,7 +272,7 @@ fn getdel(args: &[RespValue], db: SharedDb) -> RespValue {
         Ok(key) => String::from_utf8_lossy(&key).into_owned(),
         Err(error) => return error,
     };
-    let mut database = db.lock().unwrap();
+    let database = db;
     let value = database.get(&key).cloned();
     database.remove(&key);
     value.map_or(RespValue::Nil, RespValue::BulkString)

@@ -1,10 +1,7 @@
 use super::get_string_arg;
-use crate::{
-    db::{Db, SharedDb},
-    resp::RespValue,
-};
+use crate::{db::Db, resp::RespValue};
 
-pub(super) fn handle(command: &str, args: &[RespValue], db: SharedDb) -> RespValue {
+pub(super) fn handle(command: &str, args: &[RespValue], db: &mut Db) -> RespValue {
     match command {
         "RPUSH" => rpush(args, db),
         "LPUSH" => lpush(args, db),
@@ -19,7 +16,7 @@ pub(super) fn handle(command: &str, args: &[RespValue], db: SharedDb) -> RespVal
     }
 }
 
-fn rpush(args: &[RespValue], db: SharedDb) -> RespValue {
+fn rpush(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() < 2 {
         return RespValue::Error("ERR wrong number of arguments for 'RPUSH'".to_string());
     }
@@ -29,9 +26,9 @@ fn rpush(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    let mut database = db.lock().unwrap();
+    let database = db;
 
-    if let Err(error) = ensure_list(&mut database, &key) {
+    if let Err(error) = ensure_list(database, &key) {
         return error;
     }
 
@@ -47,7 +44,7 @@ fn rpush(args: &[RespValue], db: SharedDb) -> RespValue {
     RespValue::Integer(list.len() as i64)
 }
 
-fn lpush(args: &[RespValue], db: SharedDb) -> RespValue {
+fn lpush(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() < 2 {
         return RespValue::Error("ERR wrong number of arguments for 'LPUSH'".to_string());
     }
@@ -57,9 +54,9 @@ fn lpush(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    let mut database = db.lock().unwrap();
+    let database = db;
 
-    if let Err(error) = ensure_list(&mut database, &key) {
+    if let Err(error) = ensure_list(database, &key) {
         return error;
     }
 
@@ -75,7 +72,7 @@ fn lpush(args: &[RespValue], db: SharedDb) -> RespValue {
     RespValue::Integer(list.len() as i64)
 }
 
-fn lrange(args: &[RespValue], db: SharedDb) -> RespValue {
+fn lrange(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 3 {
         return RespValue::Error("ERR wrong number of arguments for 'LRANGE'".to_string());
     }
@@ -86,8 +83,8 @@ fn lrange(args: &[RespValue], db: SharedDb) -> RespValue {
     };
 
     let list = {
-        let mut database = db.lock().unwrap();
-        if let Err(error) = ensure_list(&mut database, &key) {
+        let database = db;
+        if let Err(error) = ensure_list(database, &key) {
             return error;
         }
         match database.lists.get(&key) {
@@ -142,7 +139,7 @@ fn lrange(args: &[RespValue], db: SharedDb) -> RespValue {
     )
 }
 
-fn llen(args: &[RespValue], db: SharedDb) -> RespValue {
+fn llen(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 1 {
         return RespValue::Error("ERR wrong number of arguments for 'LLEN'".to_string());
     }
@@ -152,9 +149,9 @@ fn llen(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    let mut database = db.lock().unwrap();
+    let database = db;
 
-    if let Err(error) = ensure_list(&mut database, &key) {
+    if let Err(error) = ensure_list(database, &key) {
         return error;
     }
 
@@ -162,7 +159,7 @@ fn llen(args: &[RespValue], db: SharedDb) -> RespValue {
     RespValue::Integer(length as i64)
 }
 
-fn lpop(args: &[RespValue], db: SharedDb) -> RespValue {
+fn lpop(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.is_empty() || args.len() > 2 {
         return RespValue::Error("ERR wrong number of arguments for 'LPOP'".to_string());
     }
@@ -189,8 +186,8 @@ fn lpop(args: &[RespValue], db: SharedDb) -> RespValue {
         1
     };
 
-    let mut database = db.lock().unwrap();
-    if let Err(error) = ensure_list(&mut database, &key) {
+    let database = db;
+    if let Err(error) = ensure_list(database, &key) {
         return error;
     }
     let list = match database.lists.get_mut(&key) {
@@ -227,7 +224,7 @@ fn lpop(args: &[RespValue], db: SharedDb) -> RespValue {
     }
 }
 
-fn rpop(args: &[RespValue], db: SharedDb) -> RespValue {
+fn rpop(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.is_empty() || args.len() > 2 {
         return RespValue::Error("ERR wrong number of arguments for 'RPOP'".to_string());
     }
@@ -254,8 +251,8 @@ fn rpop(args: &[RespValue], db: SharedDb) -> RespValue {
         1
     };
 
-    let mut database = db.lock().unwrap();
-    if let Err(error) = ensure_list(&mut database, &key) {
+    let database = db;
+    if let Err(error) = ensure_list(database, &key) {
         return error;
     }
     let list = match database.lists.get_mut(&key) {
@@ -292,7 +289,7 @@ fn rpop(args: &[RespValue], db: SharedDb) -> RespValue {
     }
 }
 
-fn lindex(args: &[RespValue], db: SharedDb) -> RespValue {
+fn lindex(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 2 {
         return RespValue::Error("ERR wrong number of arguments for 'LINDEX'".to_string());
     }
@@ -312,8 +309,8 @@ fn lindex(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    let mut database = db.lock().unwrap();
-    if let Err(error) = ensure_list(&mut database, &key) {
+    let database = db;
+    if let Err(error) = ensure_list(database, &key) {
         return error;
     }
     let list = match database.lists.get(&key) {
@@ -335,7 +332,7 @@ fn lindex(args: &[RespValue], db: SharedDb) -> RespValue {
     RespValue::BulkString(list[index as usize].clone())
 }
 
-fn lset(args: &[RespValue], db: SharedDb) -> RespValue {
+fn lset(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() < 3 {
         return RespValue::Error("ERR wrong number of arguments for 'LSET'".to_string());
     }
@@ -360,8 +357,8 @@ fn lset(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    let mut database = db.lock().unwrap();
-    if let Err(error) = ensure_list(&mut database, &key) {
+    let database = db;
+    if let Err(error) = ensure_list(database, &key) {
         return error;
     }
     let list = match database.lists.get_mut(&key) {
@@ -384,7 +381,7 @@ fn lset(args: &[RespValue], db: SharedDb) -> RespValue {
     RespValue::SimpleString("OK".to_string())
 }
 
-fn lrem(args: &[RespValue], db: SharedDb) -> RespValue {
+fn lrem(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() < 3 {
         return RespValue::Error("ERR wrong number of arguments for 'LREM'".to_string());
     }
@@ -409,8 +406,8 @@ fn lrem(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    let mut database = db.lock().unwrap();
-    if let Err(error) = ensure_list(&mut database, &key) {
+    let database = db;
+    if let Err(error) = ensure_list(database, &key) {
         return error;
     }
     let list = match database.lists.get_mut(&key) {

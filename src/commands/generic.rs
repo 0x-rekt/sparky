@@ -1,8 +1,8 @@
-use crate::{db::SharedDb, resp::RespValue};
+use crate::{db::Db, resp::RespValue};
 
 use super::get_string_arg;
 
-pub(super) fn handle(command: &str, args: &[RespValue], db: SharedDb) -> RespValue {
+pub(super) fn handle(command: &str, args: &[RespValue], db: &mut Db) -> RespValue {
     match command {
         "DEL" => del(args, db),
         "EXISTS" => exists(args, db),
@@ -13,7 +13,7 @@ pub(super) fn handle(command: &str, args: &[RespValue], db: SharedDb) -> RespVal
     }
 }
 
-fn del(args: &[RespValue], db: SharedDb) -> RespValue {
+fn del(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 1 {
         return RespValue::Error("ERR wrong number of arguments for 'DEL' command".to_string());
     }
@@ -21,10 +21,10 @@ fn del(args: &[RespValue], db: SharedDb) -> RespValue {
         Ok(key) => String::from_utf8_lossy(&key).into_owned(),
         Err(error) => return error,
     };
-    RespValue::Integer(db.lock().unwrap().remove(&key) as i64)
+    RespValue::Integer(db.remove(&key) as i64)
 }
 
-fn exists(args: &[RespValue], db: SharedDb) -> RespValue {
+fn exists(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.is_empty() {
         return RespValue::Error("ERR wrong number of arguments for 'EXISTS' command".to_string());
     }
@@ -34,14 +34,14 @@ fn exists(args: &[RespValue], db: SharedDb) -> RespValue {
             Ok(key) => String::from_utf8_lossy(&key).into_owned(),
             Err(error) => return error,
         };
-        if db.lock().unwrap().contains_key(&key) {
+        if db.contains_key(&key) {
             count += 1;
         }
     }
     RespValue::Integer(count)
 }
 
-fn value_type(args: &[RespValue], db: SharedDb) -> RespValue {
+fn value_type(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 1 {
         return RespValue::Error("ERR wrong number of arguments for 'TYPE' command".to_string());
     }
@@ -49,7 +49,7 @@ fn value_type(args: &[RespValue], db: SharedDb) -> RespValue {
         Ok(key) => String::from_utf8_lossy(&key).into_owned(),
         Err(error) => return error,
     };
-    let mut database = db.lock().unwrap();
+    let database = db;
     let value_type = if !database.contains_key(&key) {
         "none"
     } else if database.strings.contains_key(&key) {
@@ -66,7 +66,7 @@ fn value_type(args: &[RespValue], db: SharedDb) -> RespValue {
     RespValue::SimpleString(value_type.to_string())
 }
 
-fn rename(args: &[RespValue], db: SharedDb) -> RespValue {
+fn rename(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 2 {
         return RespValue::Error("ERR wrong number of arguments for 'RENAME' command".to_string());
     }
@@ -78,7 +78,7 @@ fn rename(args: &[RespValue], db: SharedDb) -> RespValue {
         Ok(key) => String::from_utf8_lossy(&key).into_owned(),
         Err(error) => return error,
     };
-    let mut database = db.lock().unwrap();
+    let database = db;
     match database.get(&old_key).cloned() {
         Some(value) => {
             database.remove(&old_key);
@@ -89,7 +89,7 @@ fn rename(args: &[RespValue], db: SharedDb) -> RespValue {
     }
 }
 
-fn keys(args: &[RespValue], db: SharedDb) -> RespValue {
+fn keys(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 1 {
         return RespValue::Error("ERR wrong number of arguments for 'KEYS' command".to_string());
     }
@@ -108,7 +108,7 @@ fn keys(args: &[RespValue], db: SharedDb) -> RespValue {
         return RespValue::Error("ERR only supports '*' or 'prefix*' patterns".to_string());
     };
 
-    let mut database = db.lock().unwrap();
+    let database = db;
     let mut keys: Vec<String> = database
         .keys()
         .filter(|key| {

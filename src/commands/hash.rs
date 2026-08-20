@@ -1,12 +1,9 @@
-use crate::{
-    db::{Db, SharedDb},
-    resp::RespValue,
-};
+use crate::{db::Db, resp::RespValue};
 use bytes::Bytes;
 
 use super::get_string_arg;
 
-pub(super) fn handle(command: &str, args: &[RespValue], db: SharedDb) -> RespValue {
+pub(super) fn handle(command: &str, args: &[RespValue], db: &mut Db) -> RespValue {
     match command {
         "HSET" => hset(args, db),
         "HGET" => hget(args, db),
@@ -21,7 +18,7 @@ pub(super) fn handle(command: &str, args: &[RespValue], db: SharedDb) -> RespVal
     }
 }
 
-fn hset(args: &[RespValue], db: SharedDb) -> RespValue {
+fn hset(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() < 3 || args.len().is_multiple_of(2) {
         return RespValue::Error("ERR wrong number of arguments for 'hset' command".to_string());
     }
@@ -31,9 +28,9 @@ fn hset(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    let mut database = db.lock().unwrap();
+    let database = db;
 
-    if let Err(err) = ensure_hash(&mut database, &key) {
+    if let Err(err) = ensure_hash(database, &key) {
         return err;
     }
 
@@ -57,7 +54,7 @@ fn hset(args: &[RespValue], db: SharedDb) -> RespValue {
     RespValue::Integer(count)
 }
 
-fn hget(args: &[RespValue], db: SharedDb) -> RespValue {
+fn hget(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 2 {
         return RespValue::Error("ERR wrong number of arguments for 'hget' command".to_string());
     }
@@ -67,7 +64,7 @@ fn hget(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    if let Err(err) = ensure_hash(&mut db.lock().unwrap(), &key) {
+    if let Err(err) = ensure_hash(db, &key) {
         return err;
     }
 
@@ -76,7 +73,7 @@ fn hget(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    let database = db.lock().unwrap();
+    let database = db;
     if let Some(hash) = database.hashes.get(&key)
         && let Some(value) = hash.get(&field)
     {
@@ -85,7 +82,7 @@ fn hget(args: &[RespValue], db: SharedDb) -> RespValue {
     RespValue::Nil
 }
 
-fn hdel(args: &[RespValue], db: SharedDb) -> RespValue {
+fn hdel(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() < 2 {
         return RespValue::Error("ERR wrong number of arguments for 'hdel' command".to_string());
     }
@@ -95,11 +92,11 @@ fn hdel(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    if let Err(err) = ensure_hash(&mut db.lock().unwrap(), &key) {
+    if let Err(err) = ensure_hash(db, &key) {
         return err;
     }
 
-    let mut database = db.lock().unwrap();
+    let database = db;
     if let Some(hash) = database.hashes.get_mut(&key) {
         let mut count = 0;
         for i in 1..args.len() {
@@ -121,7 +118,7 @@ fn hdel(args: &[RespValue], db: SharedDb) -> RespValue {
     RespValue::Integer(0)
 }
 
-fn hexists(args: &[RespValue], db: SharedDb) -> RespValue {
+fn hexists(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 2 {
         return RespValue::Error("ERR wrong number of arguments for 'hexists' command".to_string());
     }
@@ -131,7 +128,7 @@ fn hexists(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    if let Err(err) = ensure_hash(&mut db.lock().unwrap(), &key) {
+    if let Err(err) = ensure_hash(db, &key) {
         return err;
     }
 
@@ -140,7 +137,7 @@ fn hexists(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    let database = db.lock().unwrap();
+    let database = db;
     if let Some(hash) = database.hashes.get(&key)
         && hash.contains_key(&field)
     {
@@ -149,7 +146,7 @@ fn hexists(args: &[RespValue], db: SharedDb) -> RespValue {
     RespValue::Integer(0)
 }
 
-fn hkeys(args: &[RespValue], db: SharedDb) -> RespValue {
+fn hkeys(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 1 {
         return RespValue::Error("ERR wrong number of arguments for 'hkeys' command".to_string());
     }
@@ -159,11 +156,11 @@ fn hkeys(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    if let Err(err) = ensure_hash(&mut db.lock().unwrap(), &key) {
+    if let Err(err) = ensure_hash(db, &key) {
         return err;
     }
 
-    let database = db.lock().unwrap();
+    let database = db;
     if let Some(hash) = database.hashes.get(&key) {
         let keys: Vec<RespValue> = hash
             .keys()
@@ -174,7 +171,7 @@ fn hkeys(args: &[RespValue], db: SharedDb) -> RespValue {
     RespValue::Array(vec![])
 }
 
-fn hvals(args: &[RespValue], db: SharedDb) -> RespValue {
+fn hvals(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 1 {
         return RespValue::Error("ERR wrong number of arguments for 'hvals' command".to_string());
     }
@@ -184,11 +181,11 @@ fn hvals(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    if let Err(err) = ensure_hash(&mut db.lock().unwrap(), &key) {
+    if let Err(err) = ensure_hash(db, &key) {
         return err;
     }
 
-    let database = db.lock().unwrap();
+    let database = db;
     if let Some(hash) = database.hashes.get(&key) {
         let vals: Vec<RespValue> = hash
             .values()
@@ -199,7 +196,7 @@ fn hvals(args: &[RespValue], db: SharedDb) -> RespValue {
     RespValue::Array(vec![])
 }
 
-fn hlen(args: &[RespValue], db: SharedDb) -> RespValue {
+fn hlen(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 1 {
         return RespValue::Error("ERR wrong number of arguments for 'hlen' command".to_string());
     }
@@ -209,18 +206,18 @@ fn hlen(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    if let Err(err) = ensure_hash(&mut db.lock().unwrap(), &key) {
+    if let Err(err) = ensure_hash(db, &key) {
         return err;
     }
 
-    let database = db.lock().unwrap();
+    let database = db;
     if let Some(hash) = database.hashes.get(&key) {
         return RespValue::Integer(hash.len() as i64);
     }
     RespValue::Integer(0)
 }
 
-fn hincrby(args: &[RespValue], db: SharedDb) -> RespValue {
+fn hincrby(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 3 {
         return RespValue::Error("ERR wrong number of arguments for 'hincrby' command".to_string());
     }
@@ -230,7 +227,7 @@ fn hincrby(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    if let Err(err) = ensure_hash(&mut db.lock().unwrap(), &key) {
+    if let Err(err) = ensure_hash(db, &key) {
         return err;
     }
 
@@ -247,7 +244,7 @@ fn hincrby(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    let mut database = db.lock().unwrap();
+    let database = db;
     let hash = database.hashes.entry(key.clone()).or_default();
     let current_value = match hash.get(&field) {
         None => 0,
@@ -264,7 +261,7 @@ fn hincrby(args: &[RespValue], db: SharedDb) -> RespValue {
     RespValue::Integer(new_value)
 }
 
-fn hgetall(args: &[RespValue], db: SharedDb) -> RespValue {
+fn hgetall(args: &[RespValue], db: &mut Db) -> RespValue {
     if args.len() != 1 {
         return RespValue::Error("ERR wrong number of arguments for 'hgetall' command".to_string());
     }
@@ -274,11 +271,11 @@ fn hgetall(args: &[RespValue], db: SharedDb) -> RespValue {
         Err(error) => return error,
     };
 
-    if let Err(err) = ensure_hash(&mut db.lock().unwrap(), &key) {
+    if let Err(err) = ensure_hash(db, &key) {
         return err;
     }
 
-    let database = db.lock().unwrap();
+    let database = db;
     if let Some(hash) = database.hashes.get(&key) {
         let mut result = Vec::with_capacity(hash.len() * 2);
         for (field, value) in hash.iter() {

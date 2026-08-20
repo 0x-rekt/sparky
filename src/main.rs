@@ -29,15 +29,17 @@ fn print_startup_banner() {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     print_startup_banner();
-    let db = db::create_shared_db();
+    let mut db = db::Db::new();
     let aof_path = std::env::var("SPARKY_AOF").unwrap_or_else(|_| "sparky.aof".to_string());
     let aof = persistence::aof::Aof::open(&aof_path)?;
-    persistence::aof::Aof::replay(&aof_path, db.clone())?;
+    persistence::aof::Aof::replay(&aof_path, &mut db)?;
+    let (tx, rx) = tokio::sync::mpsc::channel(1024);
+    let db_handle = db::actor::DbHandle::new(tx);
+    tokio::spawn(db::actor::run_actor(rx, db, aof));
     let port = std::env::var("SPARKY_PORT").unwrap_or_else(|_| "6969".to_string());
     let address = format!("127.0.0.1:{port}");
     let listener = TcpListener::bind(&address).await?;
     println!("Server listening on {address}");
-    db::spawn_expiry_cleaner(db.clone());
-    server::start_server(listener, db, aof).await?;
+    server::start_server(listener, db_handle).await?;
     Ok(())
 }
