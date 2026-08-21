@@ -344,21 +344,21 @@ REDIS_AOF_FSYNC=everysec \
 ./benchmark.sh 100000 50
 ```
 
-The saved benchmark run in `benchmark_results/` produced the following throughput results:
+The latest saved benchmark run in `benchmark_results/` produced the following throughput results. Across the measured workloads, Sparky reached approximately **83.94% of Redis's aggregate throughput**.
 
 | Command | Sparky | Redis | Relative result |
 |---|---:|---:|---:|
-| `SET` | 111,732 req/s | 152,905 req/s | Sparky ~1.37× slower |
-| `GET` | 114,025 req/s | 163,666 req/s | Sparky ~1.44× slower |
-| `LPUSH` | 112,613 req/s | 163,399 req/s | Sparky ~1.45× slower |
-| `RPUSH` | 112,740 req/s | 166,389 req/s | Sparky ~1.48× slower |
-| `LPOP` | 113,507 req/s | 167,785 req/s | Sparky ~1.48× slower |
-| `RPOP` | 111,607 req/s | 168,919 req/s | Sparky ~1.51× slower |
-| `SADD` | 113,122 req/s | 167,785 req/s | Sparky ~1.48× slower |
-| `HSET` | 111,235 req/s | 165,837 req/s | Sparky ~1.49× slower |
-| `LRANGE_100` | 62,854 req/s | 86,207 req/s | Sparky ~1.37× slower |
+| `SET` | 114,943 req/s | 144,928 req/s | Sparky 79.31% |
+| `GET` | 111,111 req/s | 135,135 req/s | Sparky 82.22% |
+| `LPUSH` | 114,943 req/s | 140,845 req/s | Sparky 81.61% |
+| `RPUSH` | 117,647 req/s | 136,986 req/s | Sparky 85.88% |
+| `LPOP` | 113,636 req/s | 138,889 req/s | Sparky 81.82% |
+| `RPOP` | 111,111 req/s | 135,135 req/s | Sparky 82.22% |
+| `SADD` | 112,360 req/s | 135,135 req/s | Sparky 83.15% |
+| `HSET` | 117,647 req/s | 120,482 req/s | Sparky 97.65% |
+| `LRANGE_100` | 64,516 req/s | 73,529 req/s | Sparky 87.74% |
 
-The benchmark used the same workload and AOF policy for both servers. `LRANGE_100` reads the first 100 elements after the benchmark setup has populated a longer list. These numbers are machine- and configuration-dependent; they are included as a reproducible result rather than a universal performance claim. Re-run the benchmark after substantial performance changes before treating the table as a current measurement. The raw data is available in [`benchmark_results/`](benchmark_results/).
+The benchmark used 10,000 requests, 50 clients, and `everysec` AOF synchronization for both servers. `LRANGE_100` reads the first 100 elements after the benchmark setup has populated a longer list. These numbers are machine- and configuration-dependent; they are included as a reproducible result rather than a universal performance claim.
 
 ## Project layout
 
