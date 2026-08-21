@@ -34,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
     let fsync_policy = persistence::aof::FsyncPolicy::from_env()?;
     let aof = persistence::aof::Aof::open_with_policy(&aof_path, fsync_policy)?;
     persistence::aof::Aof::replay(&aof_path, &mut db)?;
-    let (tx, rx) = tokio::sync::mpsc::channel(1024);
+    let (tx, rx) = tokio::sync::mpsc::channel(16384);
     let db_handle = db::actor::DbHandle::new(tx);
     tokio::spawn(db::actor::run_actor(rx, db, aof));
     let port = std::env::var("SPARKY_PORT").unwrap_or_else(|_| "6969".to_string());

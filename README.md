@@ -222,7 +222,7 @@ Overwriting a key without an expiry removes its previous TTL. Renaming a key car
 
 Sparky uses an append-only file. Successful mutating commands are serialized as RESP2 frames and appended to the AOF. On startup, the file is parsed and replayed into a fresh database before the TCP listener accepts clients.
 
-The actor performs command execution and AOF append in order, so a successful write is recorded after it has been applied. Failed commands are not added to the AOF. The AOF writer calls `sync_data()` according to the configured policy.
+The actor performs command execution and AOF append in order, so a successful write is recorded after it has been applied. Failed commands are not added to the AOF. The AOF writer reuses a serialization buffer and only flushes/synchronizes according to the configured policy rather than flushing on every command.
 
 ### AOF synchronization policies
 
@@ -258,7 +258,7 @@ flowchart LR
 
 ### Request path
 
-Each connection task reads bytes from its TCP socket and keeps incomplete frames in a `BytesMut` buffer. Complete RESP2 messages are parsed and sent to the database actor through an `mpsc` channel. The actor executes one command at a time, optionally appends successful writes to the AOF, and sends the response back through a `oneshot` channel.
+Each connection task reads bytes from its TCP socket and keeps incomplete frames in a `BytesMut` buffer. Complete RESP2 messages are parsed and sent to the database actor through an `mpsc` channel. The actor executes commands in order, drains commands already waiting in the queue as a batch, optionally appends successful writes to the AOF, and sends each response back through its `oneshot` channel.
 
 This gives the server concurrent network I/O while preserving Redis-style atomic command execution without placing a `Mutex<Db>` in every connection task.
 
@@ -267,14 +267,14 @@ This gives the server concurrent network I/O while preserving Redis-style atomic
 `Db` owns separate maps for:
 
 ```text
-strings      HashMap<String, Bytes>
-lists        HashMap<String, VecDeque<Bytes>>
-hashes       HashMap<String, HashMap<String, Bytes>>
-sets         HashMap<String, HashSet<Bytes>>
-expirations  HashMap<String, Instant>
+strings      HashMap<Bytes, Bytes>
+lists        HashMap<Bytes, VecDeque<Bytes>>
+hashes       HashMap<Bytes, HashMap<String, Bytes>>
+sets         HashMap<Bytes, HashSet<Bytes>>
+expirations  HashMap<Bytes, Instant>
 ```
 
-Commands validate the target key's current type before mutation. Generic operations such as `DEL`, `EXISTS`, `TYPE`, `KEYS`, and `RENAME` operate across all typed maps.
+Top-level Redis keys use `bytes::Bytes`, allowing parsed RESP key buffers to be reused through cheap reference-counted clones instead of converting every key to an allocated `String`. Hash field names remain `String` in the current implementation. Commands validate the target key's current type before mutation. Generic operations such as `DEL`, `EXISTS`, `TYPE`, `KEYS`, and `RENAME` operate across all typed maps.
 
 ## Mutex-to-actor design decision
 
@@ -287,6 +287,8 @@ The current design uses one actor task that owns `Db` and receives commands thro
 - AOF append ordering tied directly to command execution;
 - no database lock held by connection tasks; and
 - concurrent client reads and writes at the networking layer.
+
+The hot path also avoids cloning complete list values for `LRANGE`, reuses the AOF encoder buffer, batches commands already queued for the actor, and avoids repeated top-level key allocations.
 
 The tradeoff is that all commands still pass through one execution queue, matching Redis's single-threaded command semantics. Slow disk synchronization can still delay later commands when using `SPARKY_AOF_FSYNC=always`.
 
@@ -342,7 +344,7 @@ REDIS_AOF_FSYNC=everysec \
 ./benchmark.sh 100000 50
 ```
 
-The latest saved benchmark run produced the following throughput results:
+The saved benchmark run in `benchmark_results/` produced the following throughput results:
 
 | Command | Sparky | Redis | Relative result |
 |---|---:|---:|---:|
@@ -356,7 +358,7 @@ The latest saved benchmark run produced the following throughput results:
 | `HSET` | 111,235 req/s | 165,837 req/s | Sparky ~1.49× slower |
 | `LRANGE_100` | 62,854 req/s | 86,207 req/s | Sparky ~1.37× slower |
 
-The benchmark used the same workload and AOF policy for both servers. `LRANGE_100` reads the first 100 elements after the benchmark setup has populated a longer list. These numbers are machine- and configuration-dependent; they are included as a reproducible result rather than a universal performance claim. The raw data is available in [`benchmark_results/`](benchmark_results/).
+The benchmark used the same workload and AOF policy for both servers. `LRANGE_100` reads the first 100 elements after the benchmark setup has populated a longer list. These numbers are machine- and configuration-dependent; they are included as a reproducible result rather than a universal performance claim. Re-run the benchmark after substantial performance changes before treating the table as a current measurement. The raw data is available in [`benchmark_results/`](benchmark_results/).
 
 ## Project layout
 

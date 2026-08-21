@@ -1,23 +1,37 @@
 use super::RespValue;
 
-pub fn serialize(value: &RespValue) -> Vec<u8> {
+pub fn serialize_into(value: &RespValue, out: &mut Vec<u8>) {
     match value {
-        RespValue::SimpleString(s) => format!("+{}\r\n", s).into_bytes(),
-        RespValue::Error(e) => format!("-{}\r\n", e).into_bytes(),
-        RespValue::Integer(i) => format!(":{}\r\n", i).into_bytes(),
+        RespValue::SimpleString(s) => {
+            out.push(b'+');
+            out.extend_from_slice(s.as_bytes());
+            out.extend_from_slice(b"\r\n");
+        }
+        RespValue::Error(e) => {
+            out.push(b'-');
+            out.extend_from_slice(e.as_bytes());
+            out.extend_from_slice(b"\r\n");
+        }
+        RespValue::Integer(i) => {
+            out.push(b':');
+            out.extend_from_slice(i.to_string().as_bytes());
+            out.extend_from_slice(b"\r\n");
+        }
         RespValue::BulkString(s) => {
-            let mut out = format!("${}\r\n", s.len()).into_bytes();
+            out.push(b'$');
+            out.extend_from_slice(s.len().to_string().as_bytes());
+            out.extend_from_slice(b"\r\n");
             out.extend_from_slice(s);
             out.extend_from_slice(b"\r\n");
-            out
         }
-        RespValue::Nil => b"$-1\r\n".to_vec(),
+        RespValue::Nil => out.extend_from_slice(b"$-1\r\n"),
         RespValue::Array(items) => {
-            let mut out = format!("*{}\r\n", items.len()).into_bytes();
+            out.push(b'*');
+            out.extend_from_slice(items.len().to_string().as_bytes());
+            out.extend_from_slice(b"\r\n");
             for item in items {
-                out.extend(serialize(item));
+                serialize_into(item, out);
             }
-            out
         }
     }
 }

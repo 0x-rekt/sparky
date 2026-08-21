@@ -20,7 +20,7 @@ fn persist(args: &[RespValue], db: &mut Db) -> RespValue {
         return RespValue::Error("ERR wrong number of arguments for 'persist' command".to_string());
     }
     let key = match get_string_arg(args, 0, "persist") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
     RespValue::Integer(db.persist(&key) as i64)
@@ -31,7 +31,7 @@ fn set_expiry(args: &[RespValue], db: &mut Db, milliseconds: bool) -> RespValue 
         return RespValue::Error("ERR wrong number of arguments".to_string());
     }
     let key = match get_string_arg(args, 0, "expire") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
     let amount = match get_nonnegative_integer(args, 1) {
@@ -52,7 +52,7 @@ fn get_ttl(args: &[RespValue], db: &mut Db, milliseconds: bool) -> RespValue {
         return RespValue::Error("ERR wrong number of arguments".to_string());
     }
     let key = match get_string_arg(args, 0, "ttl") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
     RespValue::Integer(db.ttl(&key, milliseconds))

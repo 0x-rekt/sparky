@@ -1,3 +1,5 @@
+use bytes::Bytes;
+
 use crate::{db::Db, resp::RespValue};
 
 use super::get_string_arg;
@@ -20,7 +22,7 @@ fn del(args: &[RespValue], db: &mut Db) -> RespValue {
     let mut deleted = 0;
     for arg in args {
         let key = match get_string_arg(std::slice::from_ref(arg), 0, "DEL") {
-            Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+            Ok(key) => key,
             Err(error) => return error,
         };
         deleted += db.remove(&key) as i64;
@@ -35,7 +37,7 @@ fn exists(args: &[RespValue], db: &mut Db) -> RespValue {
     let mut count = 0;
     for arg in args {
         let key = match get_string_arg(std::slice::from_ref(arg), 0, "EXISTS") {
-            Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+            Ok(key) => key,
             Err(error) => return error,
         };
         if db.contains_key(&key) {
@@ -50,7 +52,7 @@ fn value_type(args: &[RespValue], db: &mut Db) -> RespValue {
         return RespValue::Error("ERR wrong number of arguments for 'TYPE' command".to_string());
     }
     let key = match get_string_arg(args, 0, "TYPE") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
     let database = db;
@@ -75,11 +77,11 @@ fn rename(args: &[RespValue], db: &mut Db) -> RespValue {
         return RespValue::Error("ERR wrong number of arguments for 'RENAME' command".to_string());
     }
     let old_key = match get_string_arg(args, 0, "RENAME") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
     let new_key = match get_string_arg(args, 1, "RENAME") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
     if db.rename(&old_key, &new_key) {
@@ -109,13 +111,13 @@ fn keys(args: &[RespValue], db: &mut Db) -> RespValue {
     };
 
     let database = db;
-    let mut keys: Vec<String> = database
+    let mut keys: Vec<Bytes> = database
         .keys()
         .filter(|key| {
             if get_all {
                 true
             } else if let Some(prefix) = prefix {
-                key.starts_with(prefix)
+                key.starts_with(prefix.as_bytes())
             } else {
                 false
             }
@@ -123,10 +125,7 @@ fn keys(args: &[RespValue], db: &mut Db) -> RespValue {
         .collect();
     keys.sort_unstable();
 
-    let matching_keys = keys
-        .into_iter()
-        .map(|key| RespValue::BulkString(key.into_bytes().into()))
-        .collect();
+    let matching_keys = keys.into_iter().map(RespValue::BulkString).collect();
 
     RespValue::Array(matching_keys)
 }

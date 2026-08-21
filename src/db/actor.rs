@@ -22,14 +22,10 @@ pub async fn run_actor(mut rx: mpsc::Receiver<Command>, mut db: Db, aof: Aof) {
     loop {
         tokio::select! {
             Some(cmd) = rx.recv() => {
-                let response = handle_command(cmd.request.clone(), &mut db);
-                if is_write_command(&cmd.request)
-                    && !matches!(response, RespValue::Error(_))
-                    && let Err(error) = aof.append(&cmd.request)
-                {
-                    eprintln!("AOF append failed: {error}");
+                process_command(cmd, &mut db, &aof);
+                while let Ok(cmd) = rx.try_recv() {
+                    process_command(cmd, &mut db, &aof);
                 }
-                let _ = cmd.response_sender.send(response);
             }
             _ = expiry_tick.tick() => {
                 db.clear_expired_keys();
@@ -40,6 +36,20 @@ pub async fn run_actor(mut rx: mpsc::Receiver<Command>, mut db: Db, aof: Aof) {
             else => break,
         }
     }
+}
+
+fn process_command(cmd: Command, db: &mut Db, aof: &Aof) {
+    let should_persist = is_write_command(&cmd.request);
+    let request_for_aof = should_persist.then(|| cmd.request.clone());
+    let response = handle_command(cmd.request, db);
+    if should_persist
+        && !matches!(response, RespValue::Error(_))
+        && let Some(request) = request_for_aof.as_ref()
+        && let Err(error) = aof.append(request)
+    {
+        eprintln!("AOF append failed: {error}");
+    }
+    let _ = cmd.response_sender.send(response);
 }
 
 impl DbHandle {

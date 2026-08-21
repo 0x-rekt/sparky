@@ -23,13 +23,13 @@ fn sadd(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "SADD") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
     let database = db;
 
-    if database.contains_key(&key) && !database.sets.contains_key(&key) {
+    if database.has_wrong_type_for_set(&key) {
         return RespValue::Error(
             "WRONGTYPE Operation against a key holding the wrong kind of value".to_string(),
         );
@@ -61,7 +61,7 @@ fn sinter(args: &[RespValue], db: &mut Db) -> RespValue {
 
     for arg in args {
         let key = match get_string_arg(std::slice::from_ref(arg), 0, "SINTER") {
-            Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+            Ok(key) => key,
             Err(error) => return error,
         };
         if let Err(error) = ensure_set(database, &key) {
@@ -93,7 +93,7 @@ fn srem(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "SREM") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
@@ -129,7 +129,7 @@ fn smembers(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "SMEMBERS") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
@@ -154,7 +154,7 @@ fn sismember(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "SISMEMBER") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
@@ -182,7 +182,7 @@ fn scard(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "SCARD") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
@@ -209,7 +209,7 @@ fn sunion(args: &[RespValue], db: &mut Db) -> RespValue {
 
     for arg in args {
         let key = match get_string_arg(std::slice::from_ref(arg), 0, "SUNION") {
-            Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+            Ok(key) => key,
             Err(error) => return error,
         };
         if let Err(error) = ensure_set(database, &key) {
@@ -234,7 +234,7 @@ fn sdiff(args: &[RespValue], db: &mut Db) -> RespValue {
 
     for arg in args {
         let key = match get_string_arg(std::slice::from_ref(arg), 0, "SDIFF") {
-            Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+            Ok(key) => key,
             Err(error) => return error,
         };
         if let Err(error) = ensure_set(database, &key) {
@@ -259,12 +259,8 @@ fn sdiff(args: &[RespValue], db: &mut Db) -> RespValue {
     )
 }
 
-fn ensure_set(database: &mut Db, key: &String) -> Result<(), RespValue> {
-    if database.contains_key(key)
-        && (database.strings.contains_key(key)
-            || database.lists.contains_key(key)
-            || database.hashes.contains_key(key))
-    {
+fn ensure_set(database: &mut Db, key: &[u8]) -> Result<(), RespValue> {
+    if database.has_wrong_type_for_set(key) {
         return Err(RespValue::Error(
             "WRONGTYPE Operation against a key holding the wrong kind of value".to_string(),
         ));

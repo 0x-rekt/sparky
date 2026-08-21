@@ -22,7 +22,7 @@ fn rpush(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "RPUSH") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
@@ -50,7 +50,7 @@ fn lpush(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "LPUSH") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
@@ -78,7 +78,7 @@ fn lrange(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "LRANGE") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
@@ -143,7 +143,7 @@ fn llen(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "LLEN") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
@@ -163,7 +163,7 @@ fn lpop(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "LPOP") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
@@ -228,7 +228,7 @@ fn rpop(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "RPOP") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
@@ -293,7 +293,7 @@ fn lindex(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "LINDEX") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
@@ -336,7 +336,7 @@ fn lset(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "LSET") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
@@ -385,7 +385,7 @@ fn lrem(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "LREM") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
@@ -444,7 +444,7 @@ fn lrem(args: &[RespValue], db: &mut Db) -> RespValue {
     RespValue::Integer(removed_count as i64)
 }
 
-fn ensure_list(database: &mut Db, key: &String) -> Result<(), RespValue> {
+fn ensure_list(database: &mut Db, key: &[u8]) -> Result<(), RespValue> {
     if database.contains_key(key)
         && (database.strings.contains_key(key)
             || database.hashes.contains_key(key)

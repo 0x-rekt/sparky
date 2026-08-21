@@ -24,7 +24,7 @@ fn hset(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "HSET") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
@@ -60,7 +60,7 @@ fn hget(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "HGET") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
@@ -88,7 +88,7 @@ fn hdel(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "HDEL") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
@@ -124,7 +124,7 @@ fn hexists(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "HEXISTS") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
@@ -152,7 +152,7 @@ fn hkeys(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "HKEYS") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
@@ -177,7 +177,7 @@ fn hvals(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "HVALS") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
@@ -202,7 +202,7 @@ fn hlen(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "HLEN") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
@@ -223,7 +223,7 @@ fn hincrby(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "HINCRBY") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
@@ -267,7 +267,7 @@ fn hgetall(args: &[RespValue], db: &mut Db) -> RespValue {
     }
 
     let key = match get_string_arg(args, 0, "HGETALL") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
 
@@ -287,7 +287,7 @@ fn hgetall(args: &[RespValue], db: &mut Db) -> RespValue {
     RespValue::Array(vec![])
 }
 
-fn ensure_hash(database: &mut Db, key: &String) -> Result<(), RespValue> {
+fn ensure_hash(database: &mut Db, key: &[u8]) -> Result<(), RespValue> {
     if database.contains_key(key) && !database.hashes.contains_key(key) {
         return Err(RespValue::Error(
             "WRONGTYPE Operation against a key holding the wrong kind of value".to_string(),

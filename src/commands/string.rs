@@ -28,7 +28,7 @@ fn set(args: &[RespValue], db: &mut Db) -> RespValue {
         return RespValue::Error("ERR wrong number of arguments for 'set' command".to_string());
     }
     let key = match get_string_arg(args, 0, "set") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
     let value = match get_string_arg(args, 1, "set") {
@@ -114,7 +114,7 @@ fn get(args: &[RespValue], db: &mut Db) -> RespValue {
         return RespValue::Error("ERR wrong number of arguments for 'get' command".to_string());
     }
     let key = match get_string_arg(args, 0, "get") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
     db.get(&key)
@@ -127,7 +127,7 @@ fn strlen(args: &[RespValue], db: &mut Db) -> RespValue {
         return RespValue::Error("ERR wrong number of arguments for 'strlen' command".to_string());
     }
     let key = match get_string_arg(args, 0, "strlen") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
     RespValue::Integer(db.strings.get(&key).map_or(0, Bytes::len) as i64)
@@ -144,7 +144,7 @@ fn mget(args: &[RespValue], db: &mut Db) -> RespValue {
                 |arg| match get_string_arg(std::slice::from_ref(arg), 0, "mget") {
                     Ok(key) => database
                         .strings
-                        .get(&String::from_utf8_lossy(&key).into_owned())
+                        .get(key.as_ref())
                         .cloned()
                         .map_or(RespValue::Nil, RespValue::BulkString),
                     Err(error) => error,
@@ -161,7 +161,7 @@ fn mset(args: &[RespValue], db: &mut Db) -> RespValue {
     let database = db;
     for pair in args.chunks_exact(2) {
         let key = match get_string_arg(pair, 0, "mset") {
-            Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+            Ok(key) => key,
             Err(error) => return error,
         };
         let value = match get_string_arg(pair, 1, "mset") {
@@ -178,7 +178,7 @@ fn increment(args: &[RespValue], db: &mut Db, amount: i64) -> RespValue {
         return RespValue::Error("ERR wrong number of arguments".to_string());
     }
     let key = match get_string_arg(args, 0, "incr") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
     let database = db;
@@ -208,7 +208,7 @@ fn incrby(args: &[RespValue], db: &mut Db) -> RespValue {
         None => return RespValue::Error("ERR value is not an integer or out of range".to_string()),
     };
     let key = match get_string_arg(args, 0, "incrby") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
     let database = db;
@@ -229,7 +229,7 @@ fn append(args: &[RespValue], db: &mut Db) -> RespValue {
         return RespValue::Error("ERR wrong number of arguments for 'append' command".to_string());
     }
     let key = match get_string_arg(args, 0, "append") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
     let append_value = match get_string_arg(args, 1, "append") {
@@ -251,7 +251,7 @@ fn getset(args: &[RespValue], db: &mut Db) -> RespValue {
         return RespValue::Error("ERR wrong number of arguments for 'getset' command".to_string());
     }
     let key = match get_string_arg(args, 0, "getset") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
     let value = match get_string_arg(args, 1, "getset") {
@@ -269,7 +269,7 @@ fn getdel(args: &[RespValue], db: &mut Db) -> RespValue {
         return RespValue::Error("ERR wrong number of arguments for 'getdel' command".to_string());
     }
     let key = match get_string_arg(args, 0, "getdel") {
-        Ok(key) => String::from_utf8_lossy(&key).into_owned(),
+        Ok(key) => key,
         Err(error) => return error,
     };
     let database = db;

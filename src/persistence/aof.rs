@@ -41,6 +41,7 @@ impl FsyncPolicy {
 
 struct AofWriter {
     writer: BufWriter<File>,
+    encoded: Vec<u8>,
     policy: FsyncPolicy,
     last_sync: Instant,
 }
@@ -61,6 +62,7 @@ impl Aof {
         Ok(Self {
             writer: Arc::new(Mutex::new(AofWriter {
                 writer: BufWriter::new(file),
+                encoded: Vec::with_capacity(256),
                 policy,
                 last_sync: Instant::now(),
             })),
@@ -68,9 +70,17 @@ impl Aof {
     }
 
     pub fn append(&self, command: &RespValue) -> anyhow::Result<()> {
-        let encoded = serializer::serialize(command);
         let mut writer = self.writer.lock().unwrap();
-        writer.writer.write_all(&encoded)?;
+        writer.encoded.clear();
+        serializer::serialize_into(command, &mut writer.encoded);
+        {
+            let AofWriter {
+                writer: output,
+                encoded,
+                ..
+            } = &mut *writer;
+            output.write_all(encoded)?;
+        }
 
         match writer.policy {
             FsyncPolicy::Always => sync_writer(&mut writer)?,
@@ -123,35 +133,31 @@ pub fn is_write_command(request: &RespValue) -> bool {
         return false;
     };
 
-    matches!(
-        String::from_utf8_lossy(command)
-            .to_ascii_uppercase()
-            .as_str(),
-        "SET"
-            | "DEL"
-            | "MSET"
-            | "INCR"
-            | "DECR"
-            | "INCRBY"
-            | "APPEND"
-            | "GETSET"
-            | "GETDEL"
-            | "EXPIRE"
-            | "PEXPIRE"
-            | "RPUSH"
-            | "LPUSH"
-            | "LPOP"
-            | "RPOP"
-            | "LSET"
-            | "LREM"
-            | "HSET"
-            | "HDEL"
-            | "HINCRBY"
-            | "SADD"
-            | "SREM"
-            | "RENAME"
-            | "PERSIST"
-            | "FLUSHALL"
-            | "FLUSHDB"
-    )
+    let command = command.as_ref();
+    command.eq_ignore_ascii_case(b"SET")
+        || command.eq_ignore_ascii_case(b"DEL")
+        || command.eq_ignore_ascii_case(b"MSET")
+        || command.eq_ignore_ascii_case(b"INCR")
+        || command.eq_ignore_ascii_case(b"DECR")
+        || command.eq_ignore_ascii_case(b"INCRBY")
+        || command.eq_ignore_ascii_case(b"APPEND")
+        || command.eq_ignore_ascii_case(b"GETSET")
+        || command.eq_ignore_ascii_case(b"GETDEL")
+        || command.eq_ignore_ascii_case(b"EXPIRE")
+        || command.eq_ignore_ascii_case(b"PEXPIRE")
+        || command.eq_ignore_ascii_case(b"RPUSH")
+        || command.eq_ignore_ascii_case(b"LPUSH")
+        || command.eq_ignore_ascii_case(b"LPOP")
+        || command.eq_ignore_ascii_case(b"RPOP")
+        || command.eq_ignore_ascii_case(b"LSET")
+        || command.eq_ignore_ascii_case(b"LREM")
+        || command.eq_ignore_ascii_case(b"HSET")
+        || command.eq_ignore_ascii_case(b"HDEL")
+        || command.eq_ignore_ascii_case(b"HINCRBY")
+        || command.eq_ignore_ascii_case(b"SADD")
+        || command.eq_ignore_ascii_case(b"SREM")
+        || command.eq_ignore_ascii_case(b"RENAME")
+        || command.eq_ignore_ascii_case(b"PERSIST")
+        || command.eq_ignore_ascii_case(b"FLUSHALL")
+        || command.eq_ignore_ascii_case(b"FLUSHDB")
 }

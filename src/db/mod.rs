@@ -8,11 +8,11 @@ use bytes::Bytes;
 pub mod actor;
 
 pub struct Db {
-    pub strings: HashMap<String, Bytes>,
-    pub lists: HashMap<String, VecDeque<Bytes>>,
-    pub hashes: HashMap<String, HashMap<String, Bytes>>,
-    pub sets: HashMap<String, HashSet<Bytes>>,
-    pub expirations: HashMap<String, Instant>,
+    pub strings: HashMap<Bytes, Bytes>,
+    pub lists: HashMap<Bytes, VecDeque<Bytes>>,
+    pub hashes: HashMap<Bytes, HashMap<String, Bytes>>,
+    pub sets: HashMap<Bytes, HashSet<Bytes>>,
+    pub expirations: HashMap<Bytes, Instant>,
 }
 
 impl Db {
@@ -26,7 +26,7 @@ impl Db {
         }
     }
 
-    pub fn insert_with_expiry(&mut self, key: String, value: Bytes, expiry: Option<Instant>) {
+    pub fn insert_with_expiry(&mut self, key: Bytes, value: Bytes, expiry: Option<Instant>) {
         self.lists.remove(&key);
         self.hashes.remove(&key);
         self.sets.remove(&key);
@@ -41,12 +41,12 @@ impl Db {
         }
     }
 
-    pub fn get(&mut self, key: &String) -> Option<&Bytes> {
+    pub fn get(&mut self, key: &[u8]) -> Option<&Bytes> {
         self.remove_if_expired(key);
         self.strings.get(key)
     }
 
-    pub fn contains_key(&mut self, key: &String) -> bool {
+    pub fn contains_key(&mut self, key: &[u8]) -> bool {
         self.remove_if_expired(key);
         self.strings.contains_key(key)
             || self.lists.contains_key(key)
@@ -54,9 +54,16 @@ impl Db {
             || self.sets.contains_key(key)
     }
 
-    pub fn keys(&mut self) -> impl Iterator<Item = String> {
+    pub fn has_wrong_type_for_set(&mut self, key: &[u8]) -> bool {
+        self.remove_if_expired(key);
+        self.strings.contains_key(key)
+            || self.lists.contains_key(key)
+            || self.hashes.contains_key(key)
+    }
+
+    pub fn keys(&mut self) -> impl Iterator<Item = Bytes> {
         let now = Instant::now();
-        let expired_keys: Vec<String> = self
+        let expired_keys: Vec<Bytes> = self
             .expirations
             .iter()
             .filter_map(|(key, &expiration)| (expiration <= now).then_some(key.clone()))
@@ -73,19 +80,19 @@ impl Db {
         keys.into_iter()
     }
 
-    pub fn set_expiry(&mut self, key: &String, expiry: Instant) -> bool {
+    pub fn set_expiry(&mut self, key: &[u8], expiry: Instant) -> bool {
         if !self.contains_key(key) {
             return false;
         }
 
-        self.expirations.insert(key.clone(), expiry);
+        self.expirations.insert(Bytes::copy_from_slice(key), expiry);
         if expiry <= Instant::now() {
             self.remove(key);
         }
         true
     }
 
-    pub fn ttl(&mut self, key: &String, in_millis: bool) -> i64 {
+    pub fn ttl(&mut self, key: &[u8], in_millis: bool) -> i64 {
         if !self.contains_key(key) {
             return -2;
         }
@@ -102,7 +109,7 @@ impl Db {
         }
     }
 
-    pub fn persist(&mut self, key: &String) -> bool {
+    pub fn persist(&mut self, key: &[u8]) -> bool {
         if !self.contains_key(key) {
             return false;
         }
@@ -111,7 +118,7 @@ impl Db {
 
     pub fn clear_expired_keys(&mut self) {
         let now = Instant::now();
-        let expired_keys: Vec<String> = self
+        let expired_keys: Vec<Bytes> = self
             .expirations
             .iter()
             .filter_map(|(key, &expiration)| (expiration <= now).then_some(key.clone()))
@@ -121,7 +128,7 @@ impl Db {
         }
     }
 
-    fn remove_if_expired(&mut self, key: &String) {
+    fn remove_if_expired(&mut self, key: &[u8]) {
         if self
             .expirations
             .get(key)
@@ -131,7 +138,7 @@ impl Db {
         }
     }
 
-    pub fn remove(&mut self, key: &String) -> bool {
+    pub fn remove(&mut self, key: &[u8]) -> bool {
         let existed = self.strings.remove(key).is_some()
             | self.lists.remove(key).is_some()
             | self.hashes.remove(key).is_some()
@@ -140,7 +147,7 @@ impl Db {
         existed
     }
 
-    pub fn rename(&mut self, old_key: &String, new_key: &String) -> bool {
+    pub fn rename(&mut self, old_key: &[u8], new_key: &[u8]) -> bool {
         self.remove_if_expired(old_key);
 
         let exists = self.strings.contains_key(old_key)
@@ -159,19 +166,20 @@ impl Db {
         self.remove(new_key);
 
         if let Some(value) = self.strings.remove(old_key) {
-            self.strings.insert(new_key.clone(), value);
+            self.strings.insert(Bytes::copy_from_slice(new_key), value);
         }
         if let Some(value) = self.lists.remove(old_key) {
-            self.lists.insert(new_key.clone(), value);
+            self.lists.insert(Bytes::copy_from_slice(new_key), value);
         }
         if let Some(value) = self.hashes.remove(old_key) {
-            self.hashes.insert(new_key.clone(), value);
+            self.hashes.insert(Bytes::copy_from_slice(new_key), value);
         }
         if let Some(value) = self.sets.remove(old_key) {
-            self.sets.insert(new_key.clone(), value);
+            self.sets.insert(Bytes::copy_from_slice(new_key), value);
         }
         if let Some(expiry) = expiry {
-            self.expirations.insert(new_key.clone(), expiry);
+            self.expirations
+                .insert(Bytes::copy_from_slice(new_key), expiry);
         }
 
         true
